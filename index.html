@@ -52,9 +52,10 @@
         let targetLaptopRotZ = 0;
         let targetLidRotX = Math.PI / 4; // Starts 45 degrees closed
         
-        let targetCamPos = new THREE.Vector3(0, 10, 45); 
-        let currentCamLookAt = new THREE.Vector3(0, -1, 0);
-        let targetCamLookAt = new THREE.Vector3(0, -1, 0);
+        // Prevent wild initial flying by setting variables to their approximate final framing
+        let targetCamPos = new THREE.Vector3(0, 3.15, 6.0); 
+        let currentCamLookAt = new THREE.Vector3(0, 3.15, -5.85);
+        let targetCamLookAt = new THREE.Vector3(0, 3.15, -5.85);
         
         let finalZoomDistanceZ = 6.0;
         let screenMaterial;
@@ -623,11 +624,8 @@
             scene.background = new THREE.Color(0xffffff);
 
             camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.copy(targetCamPos);
-            camera.lookAt(currentCamLookAt);
 
-            // OPTIMIZATION: logarithmicDepthBuffer removed (huge mobile performance killer), powerPreference added
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: false, powerPreference: "high-performance" });
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             // OPTIMIZATION: Capped device ratio to prevent ultra-high-res choking on mobile screens
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25)); 
@@ -664,6 +662,12 @@
             window.addEventListener('scroll', updateScrollTargets, false);
             
             updateScrollTargets();
+
+            // FIX: Instantly snap camera to the dynamically calculated target before rendering begins
+            camera.position.copy(targetCamPos);
+            currentCamLookAt.copy(targetCamLookAt);
+            camera.lookAt(currentCamLookAt);
+            
             animate();
         }
 
@@ -672,7 +676,8 @@
             // Perfectly tuned distances to frame the lid/bezels while hiding the keyboard base
             const heightDist = 17.2; 
             const widthDist = 24.5 / aspect; 
-            finalZoomDistanceZ = -5.85 + Math.max(heightDist, widthDist);
+            // Decreased overall size by 35% (making it 65% of original scale)
+            finalZoomDistanceZ = -5.85 + (Math.max(heightDist, widthDist) / 0.65);
         }
 
         function onWindowResize() {
@@ -687,9 +692,7 @@
             const maxScroll = Math.max(1, document.body.scrollHeight - window.innerHeight);
             const p = window.scrollY / maxScroll;
 
-            const CAM_START = new THREE.Vector3(0, 10, 45); 
-            const LOOK_START = new THREE.Vector3(0, -1, 0);
-            // Y: 3.15 perfectly centers on the screen's world height to hide the flat base
+            // Target perfectly centers on the screen's world height
             const CAM_END = new THREE.Vector3(0, 3.15, finalZoomDistanceZ);
             const LOOK_END = new THREE.Vector3(0, 3.15, -5.85);
 
@@ -701,28 +704,13 @@
             const LID_START = Math.PI / 4; // 45 degrees closed
             const LID_OPEN = 0; // Fully open
 
-            if (p <= 0.3) {
-                // Phase 1: Open the lid (0% to 30% scroll)
-                let t = p / 0.3;
-                let easeOut = 1 - Math.pow(1 - t, 3); // Smooth ease out
-                targetLidRotX = LID_START + easeOut * (LID_OPEN - LID_START);
-                targetLaptopY = -3; // Keep perfectly centered during opening
-                
-                targetCamPos.copy(CAM_START);
-                targetCamLookAt.copy(LOOK_START);
-            } else {
-                // Phase 2: Cinematic zoom-in (30% to 100% scroll)
-                targetLidRotX = LID_OPEN;
-                
-                let t = (p - 0.3) / 0.7;
-                let easeInOut = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-                
-                // Keep the laptop vertically centered while zooming in
-                targetLaptopY = -3;
-                
-                targetCamPos.lerpVectors(CAM_START, CAM_END, easeInOut);
-                targetCamLookAt.lerpVectors(LOOK_START, LOOK_END, easeInOut);
-            }
+            // Smoothly open the lid as the user scrolls
+            let easeOut = 1 - Math.pow(1 - p, 2); // Quadratic ease-out for smooth mechanical unfolding
+            targetLidRotX = LID_START + easeOut * (LID_OPEN - LID_START);
+            
+            // The camera remains locked at the exact same size/framing the entire time
+            targetCamPos.copy(CAM_END);
+            targetCamLookAt.copy(LOOK_END);
         }
 
         function animate() {
