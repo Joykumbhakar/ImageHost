@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium 3D Laptop Experience</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap');
+        
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            color: #000000;
+            background-color: #ffffff;
+            overflow-x: hidden; 
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            background: #ffffff;
+            pointer-events: none;
+        }
+
+        .scroll-space {
+            height: 400vh; 
+            width: 100%;
+            position: relative;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="scroll-space"></div>
+
+    <script>
+        let scene, camera, renderer;
+        let laptopGroup, hingeGroup;
+
+        let targetLaptopY = -3; 
+        let targetLaptopRotY = 0;
+        let targetLaptopRotX = 0; 
+        let targetLaptopRotZ = 0;
+        let targetLidRotX = 0; 
+        
+        let targetCamPos = new THREE.Vector3(0, 10, 45); 
+        let currentCamLookAt = new THREE.Vector3(0, -1, 0);
+        let targetCamLookAt = new THREE.Vector3(0, -1, 0);
+        
+        let finalZoomDistanceZ = 6.0;
+        let screenMaterial;
+
+        // FIXED: True Apple M2/M3 MacBook Pro Colors
+        const colors = {
+            aluminum: 0xdfe2e8,     
+            keyboardWell: 0x000000, // Pure #000
+            keys: 0x000000,         // Pure #000
+            black: 0x000000,        
+            feet: 0x111111          
+        };
+
+        const materials = {
+            aluminum: new THREE.MeshStandardMaterial({ 
+                color: colors.aluminum, 
+                metalness: 1.0, 
+                roughness: 0.2, 
+                envMapIntensity: 2.0 
+            }),
+            keyboard: new THREE.MeshStandardMaterial({ 
+                color: colors.keyboardWell, 
+                roughness: 0.9,     
+                metalness: 0.9,     // High metalness on #000 forces it to absorb diffuse light
+                envMapIntensity: 0.0 
+            }),
+            keys: new THREE.MeshStandardMaterial({ 
+                color: colors.keys, 
+                roughness: 0.4,     // Keeps the edges slightly sharp 
+                metalness: 0.6,     // Absorbs the intense blowout from the 3.5 directional light
+                envMapIntensity: 0.0 
+            }),
+            bezel: new THREE.MeshStandardMaterial({ 
+                color: colors.black, 
+                roughness: 0.1,
+                metalness: 0.9 
+            }),
+            glass: new THREE.MeshPhysicalMaterial({
+                color: 0x000000, // Black base removes milky white haze
+                metalness: 0.0,
+                roughness: 0.0, 
+                transmission: 1.0, // 100% optically clear
+                transparent: true,
+                clearcoat: 1.0, // Glossy top layer reflection
+                clearcoatRoughness: 0.0,
+                envMapIntensity: 3.0 
+            }),
+            port: new THREE.MeshBasicMaterial({ color: colors.black }),
+            feet: new THREE.MeshStandardMaterial({ color: colors.feet, roughness: 0.95 })
+        };
+
+        function createScreenTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2560; // True 16:10 Retina
+            canvas.height = 1600;
+            const ctx = canvas.getContext('2d');
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.encoding = THREE.sRGBEncoding;
+
+            // Shared gradient in case the image fails or we need to blur the fallback
+            const fallbackBgGrad = ctx.createLinearGradient(0, 0, 2560, 1600);
+            fallbackBgGrad.addColorStop(0, '#090a0f'); 
+            fallbackBgGrad.addColorStop(0.4, '#1a1025');
+            fallbackBgGrad.addColorStop(1, '#3b1c4a');
+
+            function drawUI() {
+                // 2. macOS Top Menu Bar
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)'; // Slightly darker for contrast against new wallpaper
+                ctx.fillRect(0, 0, 2560, 56);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.font = '500 28px "Inter", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                
+                // Native Apple Logo Path for Menu Bar
+                const applePath = new Path2D("M20.2 17.5c-.1-2.4 1.1-4.2 3.3-5.5-1.2-1.8-3.1-2.7-5.5-2.9-2.3-.2-4.8 1.4-5.8 1.4-1 0-3.2-1.3-5-1.3-2.7 0-5.3 1.6-6.7 4.1-2.8 5.3-2 11.2 1.6 16.3 1.7 2.4 3.7 5.1 6.3 5 2.5-.1 3.5-1.6 6.5-1.6 3 0 3.9 1.6 6.5 1.5 2.7-.1 4.4-2.5 6-4.9-2-1.4-3.8-5-3.8-7.9zM15.4 6c1.8-2.1 1.6-4.1 1.6-4.8-1.6.1-3.4 1.1-4.5 2.3-1.1 1.3-1.8 2.9-1.7 4.7 1.7.1 3.3-.7 4.6-2.2z");
+                ctx.save();
+                ctx.translate(65, 12); 
+                ctx.scale(1.2, 1.2);
+                ctx.fill(applePath);
+                ctx.restore();
+
+                ctx.fillText('File   Edit   View   Window   Help', 115, 30);
+                ctx.textAlign = 'right';
+                const timeString = "Sat Aug 1  10:00 AM";
+                ctx.fillText('100%   ' + timeString, 2505, 30);
+
+                // --- 3. FLOATING macOS GLASS WINDOW ---
+                const winW = 1700; 
+                const winH = 920;  
+                const winX = (2560 - winW) / 2;
+                const winY = (1600 - winH) / 2 - 40; 
+
+                // 3a. Deep Drop Shadow Base 
+                ctx.save();
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; 
+                ctx.shadowBlur = 80; 
+                ctx.shadowOffsetY = 40;
+                ctx.fillStyle = '#000000'; 
+                ctx.beginPath(); 
+                ctx.roundRect(winX, winY, winW, winH, 24);
+                ctx.fill();
+                ctx.restore();
+                
+                // 3b. Authentic Glassmorphism (Real Blur + Tint)
+                ctx.save();
+                ctx.beginPath(); 
+                ctx.roundRect(winX, winY, winW, winH, 24);
+                ctx.clip(); 
+
+                ctx.filter = 'blur(60px)';
+                
+                if (img.complete && img.naturalWidth !== 0) {
+                    ctx.drawImage(img, -100, -100, 2760, 1800); 
+                } else {
+                    ctx.fillStyle = fallbackBgGrad;
+                    ctx.fillRect(0, 0, 2560, 1600);
+                }
+                
+                ctx.filter = 'none'; 
+
+                ctx.fillStyle = 'rgba(20, 20, 22, 0.5)'; 
+                ctx.fill();
+                ctx.restore();
+                
+                // 3c. Subtle Window Border
+                ctx.lineWidth = 1.5; 
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
+                ctx.beginPath();
+                ctx.roundRect(winX, winY, winW, winH, 24);
+                ctx.stroke();
+
+                // macOS Traffic Light Buttons
+                const trafficY = winY + 30;
+                const trafficStartX = winX + 30;
+                ctx.beginPath(); ctx.arc(trafficStartX, trafficY, 8, 0, Math.PI*2); ctx.fillStyle = '#ff5f56'; ctx.fill(); // Close
+                ctx.beginPath(); ctx.arc(trafficStartX + 26, trafficY, 8, 0, Math.PI*2); ctx.fillStyle = '#ffbd2e'; ctx.fill(); // Minimize
+                ctx.beginPath(); ctx.arc(trafficStartX + 52, trafficY, 8, 0, Math.PI*2); ctx.fillStyle = '#27c93f'; ctx.fill(); // Maximize
+
+                // Toolbar Separator Line
+                ctx.beginPath();
+                ctx.moveTo(winX, winY + 60);
+                ctx.lineTo(winX + winW, winY + 60);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.stroke();
+
+                // Profile Heading
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '700 48px "Inter", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText('PROFILE', winX + 80, winY + 110);
+
+                // Profile Paragraph Content
+                ctx.font = '400 32px "Inter", sans-serif';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'; 
+                
+                const profileText = "My first priority when building a new project from the ground up is clearly defining its core objective. Back in late 2020, I started my coding journey with Python, which laid the logical foundation for my career. Over the past 3+ years, I've worked extensively as a Freelance Developer and UI/UX Designer, helping global clients translate business requirements into intuitive, highly polished technical solutions.\n\nI specialize in building applications and tools that streamline workflows, solve real-world problems, and deliver highly polished user experiences. For instance, I built my first native Android app, SecureThings, because I needed a truly private mobile vault. By implementing local military-grade security (AES encryption), comprehensive activity logging, and a fake lock screen, I created a secure data architecture that off-the-shelf apps simply didn't provide.";
+                
+                const maxWidth = winW - 160; 
+                const lineHeight = 52;
+                let cursorY = winY + 200;
+                
+                const paragraphs = profileText.split('\n\n');
+                paragraphs.forEach(p => {
+                    const words = p.split(' ');
+                    let line = '';
+                    for(let n = 0; n < words.length; n++) {
+                        const testLine = line + words[n] + ' ';
+                        const metrics = ctx.measureText(testLine);
+                        if (metrics.width > maxWidth && n > 0) {
+                            ctx.fillText(line, winX + 80, cursorY);
+                            line = words[n] + ' ';
+                            cursorY += lineHeight;
+                        } else {
+                            line = testLine;
+                        }
+                    }
+                    ctx.fillText(line, winX + 80, cursorY);
+                    cursorY += lineHeight + 40; 
+                });
+
+                // 4. Genuine macOS Realistic Dock
+                const apps = [
+                    { id: 'finder', name: 'Finder' },
+                    { id: 'calculator', name: 'Calculator' },
+                    { id: 'terminal', name: 'Terminal' },
+                    { id: 'mail', name: 'Mail' },
+                    { id: 'notes', name: 'Notes' },
+                    { id: 'safari', name: 'Safari' },
+                    { id: 'photos', name: 'Photos' },
+                    { id: 'music', name: 'Music' },
+                    { id: 'calendar', name: 'Calendar' }
+                ];
+
+                const iconSize = 76; 
+                const gap = 16;
+                const padding = 20;
+                const dockW = (apps.length * iconSize) + ((apps.length - 1) * gap) + (padding * 2);
+                const dockH = 100;
+                const dockX = (2560 - dockW) / 2, dockY = 1600 - dockH - 24;
+                
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 20;
+                ctx.beginPath(); ctx.roundRect(dockX, dockY, dockW, dockH, 36);
+                ctx.fillStyle = 'rgba(20, 20, 22, 0.65)'; ctx.fill(); 
+                ctx.shadowColor = 'transparent';
+                ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.stroke(); 
+                
+                const startX = dockX + padding;
+                const iconY = dockY + (dockH - iconSize) / 2;
+                
+                const drawGradientIcon = (x, y, color1, color2, innerDraw, hasWhiteBase = false) => {
+                    const grad = ctx.createLinearGradient(x, y, x, y + iconSize);
+                    grad.addColorStop(0, color1);
+                    grad.addColorStop(1, color2);
+                    
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 6;
+                    ctx.beginPath(); ctx.roundRect(x, y, iconSize, iconSize, 18);
+                    ctx.fillStyle = grad; ctx.fill();
+                    ctx.shadowColor = 'transparent';
+                    
+                    ctx.strokeStyle = hasWhiteBase ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.2)'; 
+                    ctx.lineWidth = 1; ctx.stroke();
+                    ctx.restore();
+                    
+                    ctx.save(); 
+                    ctx.translate(x, y); 
+                    ctx.shadowColor = 'transparent'; 
+                    ctx.shadowBlur = 0; 
+                    innerDraw(ctx); 
+                    ctx.restore();
+                }
+
+                const renderLucide = (c, paths, color, strokeWidth = 2.2, customDraw = null) => {
+                    c.save();
+                    c.translate(iconSize/2, iconSize/2);
+                    c.scale(1.75, 1.75); 
+                    c.translate(-12, -12); 
+                    
+                    c.strokeStyle = color;
+                    c.lineWidth = strokeWidth;
+                    c.lineCap = 'round';
+                    c.lineJoin = 'round';
+                    
+                    paths.forEach(p => c.stroke(new Path2D(p)));
+                    
+                    if (customDraw) {
+                        customDraw(c); 
+                    }
+                    c.restore();
+                }
+
+                drawGradientIcon(startX, iconY, '#2ED3FA', '#017BFA', (c) => {
+                    renderLucide(c, ['m21 21-4.3-4.3'], '#ffffff', 2.5, (ctx) => {
+                        ctx.beginPath(); ctx.arc(11, 11, 8, 0, Math.PI*2); ctx.stroke();
+                    });
+                });
+                
+                drawGradientIcon(startX + (iconSize+gap)*1, iconY, '#5A5D61', '#2D3035', (c) => {
+                    renderLucide(c, [
+                        'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z', 
+                        'M8 6h8', 'M16 14v4', 'M16 10h.01', 'M12 10h.01', 'M8 10h.01', 
+                        'M12 14h.01', 'M8 14h.01', 'M12 18h.01', 'M8 18h.01'
+                    ], '#FF9F0A');
+                });
+
+                drawGradientIcon(startX + (iconSize+gap)*2, iconY, '#3C3C3C', '#1A1A1A', (c) => {
+                    renderLucide(c, ['M4 17l6-6-6-6', 'M12 19h8'], '#4CD964', 2.5);
+                });
+
+                drawGradientIcon(startX + (iconSize+gap)*3, iconY, '#59C2FF', '#0070F0', (c) => {
+                    renderLucide(c, [
+                        'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 
+                        'M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7'
+                    ], '#ffffff');
+                });
+
+                drawGradientIcon(startX + (iconSize+gap)*4, iconY, '#FFFFFF', '#F5F5F7', (c) => {
+                    renderLucide(c, [
+                        'M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z', 
+                        'M15 3v6h6'
+                    ], '#F5B013');
+                }, true);
+
+                drawGradientIcon(startX + (iconSize+gap)*5, iconY, '#FFFFFF', '#F5F5F7', (c) => {
+                    renderLucide(c, ['M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z'], '#007AFF', 2.2, (ctx) => {
+                        ctx.beginPath(); ctx.arc(12, 12, 10, 0, Math.PI*2); ctx.stroke();
+                    });
+                }, true);
+
+                drawGradientIcon(startX + (iconSize+gap)*6, iconY, '#FFFFFF', '#F5F5F7', (c) => {
+                    c.translate(iconSize/2, iconSize/2);
+                    const petals = ['#FF2D55', '#FF3B30', '#FF9500', '#FFCC00', '#4CD964', '#5AC8FA', '#007AFF', '#5856D6'];
+                    
+                    c.globalAlpha = 0.8;
+                    c.globalCompositeOperation = 'multiply'; 
+                    for(let i=0; i<8; i++) {
+                        c.save();
+                        c.rotate((i * 45 * Math.PI) / 180);
+                        c.beginPath();
+                        c.ellipse(0, -9.5, 5.5, 11.5, 0, 0, Math.PI*2);
+                        c.fillStyle = petals[i];
+                        c.fill();
+                        c.restore();
+                    }
+                    
+                    c.globalCompositeOperation = 'source-over';
+                    c.globalAlpha = 1.0;
+                    c.beginPath(); c.arc(0,0,4.5,0,Math.PI*2); c.fillStyle = '#ffffff'; c.fill();
+                }, true);
+
+                drawGradientIcon(startX + (iconSize+gap)*7, iconY, '#FF5B65', '#FA233B', (c) => {
+                    renderLucide(c, ['M9 18V5l12-2v13'], '#ffffff', 2.2, (ctx) => {
+                        ctx.beginPath(); ctx.arc(6, 18, 3, 0, Math.PI*2); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(18, 16, 3, 0, Math.PI*2); ctx.stroke();
+                    });
+                });
+
+                drawGradientIcon(startX + (iconSize+gap)*8, iconY, '#FFFFFF', '#F5F5F7', (c) => {
+                    renderLucide(c, [
+                        'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 
+                        'M16 2v4', 'M8 2v4', 'M3 10h18', 
+                        'M8 14h.01', 'M12 14h.01', 'M16 14h.01', 
+                        'M8 18h.01', 'M12 18h.01', 'M16 18h.01'
+                    ], '#FF3B30');
+                }, true);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(startX + iconSize/2, dockY + dockH - 12, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(startX + (iconSize+gap)*5 + iconSize/2, dockY + dockH - 12, 3, 0, Math.PI*2); ctx.fill();
+
+                tex.needsUpdate = true;
+            }
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; 
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, 2560, 1600);
+                drawUI();
+            };
+            img.onerror = () => {
+                ctx.fillStyle = fallbackBgGrad;
+                ctx.fillRect(0, 0, 2560, 1600);
+                drawUI();
+            };
+            img.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIgANQJ1l8VGpebTFSehheWW00YTqFYh1GFWLA8Cx23tXbhrEM08C5v84&s=10';
+
+            return tex;
+        }
+
+        function createAppleLogoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 512, 512); 
+            ctx.fillStyle = '#ffffff'; 
+            
+            const path = new Path2D("M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z");
+            
+            ctx.translate(64, 0); 
+            ctx.fill(path);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createCameraSensorTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, '#38bdf8'); 
+            grad.addColorStop(0.5, '#10b981'); 
+            grad.addColorStop(1, '#042f2e'); 
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(64, 64, 64, 0, Math.PI * 2); ctx.fill();
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 16;
+            return tex;
+        }
+
+        function createKeyDecal(primary, secondary = '', isIcon = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 128, 128); 
+            
+            ctx.fillStyle = '#ffffff'; 
+            ctx.textBaseline = 'middle';
+            
+            if (isIcon) {
+                ctx.textAlign = 'left';
+                ctx.font = '300 22px "Inter", sans-serif';
+                ctx.fillText(primary, 16, 96); 
+                if (secondary) {
+                    ctx.font = '400 28px "Inter", sans-serif';
+                    ctx.fillText(secondary, 96, 96); 
+                }
+            } else if (secondary !== '') {
+                ctx.textAlign = 'center';
+                ctx.font = '400 26px "Inter", sans-serif';
+                ctx.fillText(primary, 64, 40); 
+                ctx.font = '400 28px "Inter", sans-serif';
+                ctx.fillText(secondary, 64, 88); 
+            } else {
+                ctx.textAlign = 'center';
+                ctx.font = '400 32px "Inter", sans-serif';
+                ctx.fillText(primary, 64, 64); 
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 16;
+            return tex;
+        }
+
+        function createSpeakerMaterials(repeatX, repeatY) {
+            const size = 256, gap = 10, radius = 2.8;
+            const colorCanvas = document.createElement('canvas'); colorCanvas.width = size; colorCanvas.height = size;
+            const cCtx = colorCanvas.getContext('2d');
+            cCtx.fillStyle = '#73767b'; cCtx.fillRect(0, 0, size, size);
+            cCtx.fillStyle = '#000000'; 
+            
+            const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = size; bumpCanvas.height = size;
+            const bCtx = bumpCanvas.getContext('2d'); bCtx.fillStyle = '#ffffff'; bCtx.fillRect(0, 0, size, size);
+
+            for(let y = 0; y <= size; y += gap) {
+                const offsetX = (y / gap) % 2 === 0 ? 0 : gap / 2;
+                for(let x = -gap; x <= size + gap; x += gap) {
+                    cCtx.beginPath(); cCtx.arc(x + offsetX, y, radius, 0, Math.PI * 2); cCtx.fill();
+                    const grad = bCtx.createRadialGradient(x + offsetX, y, 0, x + offsetX, y, radius);
+                    grad.addColorStop(0, '#000000'); grad.addColorStop(1, '#ffffff');
+                    bCtx.fillStyle = grad; bCtx.beginPath(); bCtx.arc(x + offsetX, y, radius, 0, Math.PI * 2); bCtx.fill();
+                }
+            }
+            
+            const colorMap = new THREE.CanvasTexture(colorCanvas);
+            colorMap.wrapS = THREE.RepeatWrapping; colorMap.wrapT = THREE.RepeatWrapping; colorMap.repeat.set(repeatX, repeatY); colorMap.anisotropy = 16;
+            const bumpMap = new THREE.CanvasTexture(bumpCanvas);
+            bumpMap.wrapS = THREE.RepeatWrapping; bumpMap.wrapT = THREE.RepeatWrapping; bumpMap.repeat.set(repeatX, repeatY); bumpMap.anisotropy = 16;
+            
+            return { colorMap, bumpMap };
+        }
+
+        function createRoundedPlane(width, height, radius) {
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = -height / 2;
+            shape.moveTo(x, y + radius); shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+            shape.lineTo(x + width - radius, y + height); shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+            shape.lineTo(x + width, y + radius); shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+            shape.lineTo(x + radius, y); shape.quadraticCurveTo(x, y, x, y + radius);
+            
+            const geometry = new THREE.ShapeGeometry(shape);
+            const pos = geometry.attributes.position;
+            const uv = new Float32Array(pos.count * 2);
+            for(let i = 0; i < pos.count; i++) {
+                uv[i * 2] = (pos.getX(i) - x) / width;
+                uv[i * 2 + 1] = (pos.getY(i) - y) / height;
+            }
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            return geometry;
+        }
+
+        function createNotchGeometry() {
+            const width = 2.1, height = 0.35, radius = 0.15;
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = 0; 
+            
+            shape.moveTo(x, y); 
+            shape.lineTo(x, y - height + radius); 
+            shape.quadraticCurveTo(x, y - height, x + radius, y - height); 
+            shape.lineTo(-x - radius, y - height); 
+            shape.quadraticCurveTo(-x, y - height, -x, y - height + radius); 
+            shape.lineTo(-x, y); 
+            shape.lineTo(x, y);
+            
+            return new THREE.ShapeGeometry(shape);
+        }
+
+        function createRoundedBox(width, height, depth, radius, bevelSize = 0.02) {
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = -height / 2;
+            shape.moveTo(x, y + radius); shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height); shape.lineTo(x + width - radius, y + height);
+            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius); shape.lineTo(x + width, y + radius);
+            shape.quadraticCurveTo(x + width, y, x + width - radius, y); shape.lineTo(x + radius, y); shape.quadraticCurveTo(x, y, x, y + radius);
+            
+            const extrudeSettings = {
+                depth: bevelSize > 0 ? Math.max(0.001, depth - (bevelSize * 2)) : depth,
+                bevelEnabled: bevelSize > 0, bevelSegments: 8, steps: 1, bevelSize: bevelSize, bevelThickness: bevelSize
+            };
+            const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geometry.center(); 
+            return geometry;
+        }
+
+        function buildLaptop() {
+            laptopGroup = new THREE.Group();
+
+            // Main Base Shell
+            const baseGeo = createRoundedBox(16.4, 11.8, 0.25, 0.9, 0.03).rotateX(-Math.PI / 2); 
+            const baseMesh = new THREE.Mesh(baseGeo, materials.aluminum);
+            baseMesh.position.y = 0.125; baseMesh.castShadow = true; baseMesh.receiveShadow = true;
+            laptopGroup.add(baseMesh);
+
+            // Front Opening Notch
+            const notchMesh = new THREE.Mesh(createRoundedBox(2.4, 0.12, 0.15, 0.04, 0), materials.port);
+            notchMesh.position.set(0, 0.25, 5.86); laptopGroup.add(notchMesh);
+
+            // Bottom Rubber Feet
+            const footGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.04, 32);
+            [[-7.1, -0.01, -4.8], [7.1, -0.01, -4.8], [-7.1, -0.01, 4.8], [7.1, -0.01, 4.8]].forEach(pos => {
+                const foot = new THREE.Mesh(footGeo, materials.feet);
+                foot.position.set(...pos); laptopGroup.add(foot);
+            });
+
+            // Trackpad
+            const trackpadBorder = new THREE.Mesh(createRoundedBox(6.82, 4.62, 0.01, 0.25, 0).rotateX(-Math.PI / 2), materials.port);
+            trackpadBorder.position.set(0, 0.255, 3.3); laptopGroup.add(trackpadBorder);
+            const trackpadMesh = new THREE.Mesh(createRoundedBox(6.78, 4.58, 0.01, 0.23, 0).rotateX(-Math.PI / 2), materials.aluminum);
+            trackpadMesh.position.set(0, 0.26, 3.3); laptopGroup.add(trackpadMesh);
+
+            // Deep Black Keyboard Well (M-Series Style)
+            const keyboardBaseMesh = new THREE.Mesh(createRoundedBox(13.25, 5.65, 0.01, 0.2, 0).rotateX(-Math.PI / 2), materials.keyboard);
+            keyboardBaseMesh.position.set(0, 0.251, -2.0); laptopGroup.add(keyboardBaseMesh);
+
+            // Micro-perforated Speakers
+            const speakerWidth = 1.35, speakerHeight = 5.75, spkRadius = 0.12;
+            const repX = 2.5, repY = repX * (speakerHeight / speakerWidth); 
+            const spkMaps = createSpeakerMaterials(repX, repY);
+            const speakerMat = new THREE.MeshStandardMaterial({ 
+                map: spkMaps.colorMap, bumpMap: spkMaps.bumpMap, bumpScale: 0.015,
+                color: 0xffffff, metalness: 0.8, roughness: 0.35 
+            });
+
+            const borderGeo = createRoundedBox(speakerWidth + 0.05, speakerHeight + 0.05, 0.005, spkRadius + 0.02, 0).rotateX(-Math.PI / 2);
+            const borderMat = new THREE.MeshStandardMaterial({ color: 0x66696d, metalness: 0.85, roughness: 0.5 });
+            const speakerGeo = createRoundedBox(speakerWidth, speakerHeight, 0.005, spkRadius, 0).rotateX(-Math.PI / 2);
+
+            const speakerLGroup = new THREE.Group();
+            const speakerRGroup = new THREE.Group();
+            [[-7.4, speakerLGroup], [7.4, speakerRGroup]].forEach(([x, group]) => {
+                const border = new THREE.Mesh(borderGeo, borderMat);
+                const grill = new THREE.Mesh(speakerGeo, speakerMat);
+                grill.position.y = 0.001; 
+                group.add(border, grill);
+                group.position.set(x, 0.251, -2.0); laptopGroup.add(group);
+            });
+
+            // Precise ANSI Keyboard Layout Rendering
+            const u = 0.74, g = 0.12; 
+            const layout = [
+                [ {w: 1.5, p:'esc', type:'sys'}, {w: 1, p:'F1'}, {w: 1, p:'F2'}, {w: 1, p:'F3'}, {w: 1, p:'F4'}, {w: 1, p:'F5'}, {w: 1, p:'F6'}, {w: 1, p:'F7'}, {w: 1, p:'F8'}, {w: 1, p:'F9'}, {w: 1, p:'F10'}, {w: 1, p:'F11'}, {w: 1, p:'F12'}, {w: 1.5, id: 'touchid'} ],
+                [ {w: 1, p:'~', s:'`'}, {w: 1, p:'!', s:'1'}, {w: 1, p:'@', s:'2'}, {w: 1, p:'#', s:'3'}, {w: 1, p:'$', s:'4'}, {w: 1, p:'%', s:'5'}, {w: 1, p:'^', s:'6'}, {w: 1, p:'&', s:'7'}, {w: 1, p:'*', s:'8'}, {w: 1, p:'(', s:'9'}, {w: 1, p:')', s:'0'}, {w: 1, p:'_', s:'-'}, {w: 1, p:'+', s:'='}, {w: 2, p:'delete', type:'sys'} ],
+                [ {w: 1.5, p:'tab', type:'sys'}, {w: 1, p:'Q'}, {w: 1, p:'W'}, {w: 1, p:'E'}, {w: 1, p:'R'}, {w: 1, p:'T'}, {w: 1, p:'Y'}, {w: 1, p:'U'}, {w: 1, p:'I'}, {w: 1, p:'O'}, {w: 1, p:'P'}, {w: 1, p:'{', s:'['}, {w: 1, p:'}', s:']'}, {w: 1.5, p:'|', s:'\\'} ],
+                [ {w: 1.75, p:'caps lock', type:'sys'}, {w: 1, p:'A'}, {w: 1, p:'S'}, {w: 1, p:'D'}, {w: 1, p:'F'}, {w: 1, p:'G'}, {w: 1, p:'H'}, {w: 1, p:'J'}, {w: 1, p:'K'}, {w: 1, p:'L'}, {w: 1, p:':', s:';'}, {w: 1, p:'"', s:'\''}, {w: 2.25, p:'return', type:'sys'} ],
+                [ {w: 2.25, p:'shift', type:'sys'}, {w: 1, p:'Z'}, {w: 1, p:'X'}, {w: 1, p:'C'}, {w: 1, p:'V'}, {w: 1, p:'B'}, {w: 1, p:'N'}, {w: 1, p:'M'}, {w: 1, p:'<', s:','}, {w: 1, p:'>', s:'.'}, {w: 1, p:'?', s:'/'}, {w: 2.75, p:'shift', type:'sys'} ],
+                [ {w: 1, p:'fn', type:'sys'}, {w: 1, p:'control', s:'⌃', type:'sys'}, {w: 1, p:'option', s:'⌥', type:'sys'}, {w: 1.25, p:'command', s:'⌘', type:'sys'}, {w: 5.5, p:''}, {w: 1.25, p:'command', s:'⌘', type:'sys'}, {w: 1, p:'option', s:'⌥', type:'sys'}, {w: 1, p:'◀'}, {w: 1, type: 'updown'}, {w: 1, p:'▶'} ]
+            ];
+
+            const totalWidth = 15 * u + 14 * g;
+            const startX = -totalWidth / 2;
+
+            layout.forEach((row, rowIndex) => {
+                let currentX = startX;
+                const zPos = -2.0 + (rowIndex - 2.5) * (u + g);
+                row.forEach(key => {
+                    const physicalWidth = key.w * u + (key.w - 1) * g;
+                    const xPos = currentX + physicalWidth / 2;
+                    const keyHeight = 0.08; 
+
+                    if (key.type === 'updown') {
+                        const halfHeight = (u - g) / 2; 
+                        const upGeo = createRoundedBox(physicalWidth, halfHeight, keyHeight, 0.08, 0.015).rotateX(-Math.PI / 2);
+                        const upMesh = new THREE.Mesh(upGeo, materials.keys);
+                        upMesh.position.set(xPos, 0.25, zPos - u/2 + halfHeight/2); laptopGroup.add(upMesh);
+                        const upDecal = new THREE.Mesh(new THREE.PlaneGeometry(physicalWidth*0.9, halfHeight*0.9), new THREE.MeshBasicMaterial({map: createKeyDecal('▲'), transparent: true}));
+                        upDecal.rotation.x = -Math.PI / 2; upDecal.position.set(xPos, 0.292, zPos - u/2 + halfHeight/2); laptopGroup.add(upDecal);
+
+                        const downGeo = createRoundedBox(physicalWidth, halfHeight, keyHeight, 0.08, 0.015).rotateX(-Math.PI / 2);
+                        const downMesh = new THREE.Mesh(downGeo, materials.keys);
+                        downMesh.position.set(xPos, 0.25, zPos + u/2 - halfHeight/2); laptopGroup.add(downMesh);
+                        const downDecal = new THREE.Mesh(new THREE.PlaneGeometry(physicalWidth*0.9, halfHeight*0.9), new THREE.MeshBasicMaterial({map: createKeyDecal('▼'), transparent: true}));
+                        downDecal.rotation.x = -Math.PI / 2; downDecal.position.set(xPos, 0.292, zPos + u/2 - halfHeight/2); laptopGroup.add(downDecal);
+                    } else {
+                        const radius = key.id === 'touchid' ? 0.15 : 0.08;
+                        const keyGeo = createRoundedBox(physicalWidth, u, keyHeight, radius, 0.015).rotateX(-Math.PI / 2);
+                        
+                        let mat = materials.keys;
+                        if(key.id === 'touchid') {
+                            mat = new THREE.MeshStandardMaterial({ color: 0x020202, roughness: 0.15, metalness: 0.8 }); 
+                            const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.03, 16, 32), materials.aluminum);
+                            ringMesh.rotation.x = Math.PI / 2; ringMesh.position.set(xPos, 0.29, zPos); laptopGroup.add(ringMesh);
+                        }
+                        
+                        const keyMesh = new THREE.Mesh(keyGeo, mat);
+                        keyMesh.position.set(xPos, 0.25, zPos); laptopGroup.add(keyMesh);
+
+                        if (key.p && key.id !== 'touchid') {
+                            const decal = new THREE.Mesh(new THREE.PlaneGeometry(physicalWidth * 0.9, u * 0.9), new THREE.MeshBasicMaterial({map: createKeyDecal(key.p, key.s || '', key.type === 'sys'), transparent: true, opacity: 1.0}));
+                            decal.rotation.x = -Math.PI / 2; decal.position.set(xPos, 0.292, zPos); laptopGroup.add(decal);
+                        }
+                    }
+                    currentX += physicalWidth + g;
+                });
+            });
+
+            hingeGroup = new THREE.Group();
+            hingeGroup.position.set(0, 0.25, -5.85); 
+            hingeGroup.rotation.x = targetLidRotX; 
+
+            // Hinge Barrel
+            hingeGroup.add(new THREE.Mesh(createRoundedBox(12.5, 0.6, 0.3, 0.1, 0), materials.bezel)); 
+
+            // Aluminum Lid Backing
+            const lidMesh = new THREE.Mesh(createRoundedBox(16.4, 11.8, 0.15, 0.9, 0.02), materials.aluminum);
+            lidMesh.position.set(0, 5.9, -0.075); hingeGroup.add(lidMesh);
+
+            // High-Contrast Mirror Apple Logo
+            const logoMat = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a1a, 
+                metalness: 1.0, 
+                roughness: 0.1, 
+                alphaMap: createAppleLogoTexture(), 
+                transparent: true, 
+                alphaTest: 0.5, 
+                side: THREE.FrontSide 
+            });
+            const logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), logoMat);
+            logoMesh.position.set(0, 5.9, -0.151); logoMesh.rotation.y = Math.PI; hingeGroup.add(logoMesh);
+
+            // Display Gasket and Bezel
+            const gasketMesh = new THREE.Mesh(createRoundedBox(16.44, 11.84, 0.01, 0.91, 0), materials.keyboard);
+            gasketMesh.position.set(0, 5.9, 0.005); hingeGroup.add(gasketMesh);
+
+            const bezelMesh = new THREE.Mesh(createRoundedBox(16.4, 11.8, 0.02, 0.9, 0), materials.bezel);
+            bezelMesh.position.set(0, 5.9, 0.01); hingeGroup.add(bezelMesh);
+
+            // Emissive Screen Display 
+            const screenTex = createScreenTexture();
+            screenMaterial = new THREE.MeshStandardMaterial({ 
+                map: screenTex, 
+                emissiveMap: screenTex, 
+                emissive: new THREE.Color(0xffffff), 
+                emissiveIntensity: 0.85, 
+                side: THREE.FrontSide,
+                roughness: 1.0, 
+                metalness: 0.0
+            });
+            
+            const screenMesh = new THREE.Mesh(createRoundedPlane(16.3, 11.7, 0.825), screenMaterial);
+            screenMesh.position.set(0, 5.925, 0.038); hingeGroup.add(screenMesh);
+
+            // Floating Dynamic Island (Detached Pill)
+            const dynamicIslandMesh = new THREE.Mesh(createRoundedBox(1.6, 0.28, 0.01, 0.14, 0), materials.bezel);
+            dynamicIslandMesh.position.set(0, 11.42, 0.046); 
+            hingeGroup.add(dynamicIslandMesh);
+
+            laptopGroup.add(hingeGroup);
+            laptopGroup.position.set(0, targetLaptopY, 0); 
+            scene.add(laptopGroup);
+        }
+
+        function createEnvironmentMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#111111'; 
+            ctx.fillRect(0, 0, 1024, 512);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 50; 
+            
+            ctx.beginPath();
+            ctx.moveTo(100, -100);
+            ctx.lineTo(924, 150);
+            ctx.lineTo(924, 250);
+            ctx.lineTo(100, 0);
+            ctx.fill();
+            
+            ctx.fillRect(-50, 200, 200, 100);
+            ctx.fillRect(874, 200, 200, 100);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.mapping = THREE.EquirectangularReflectionMapping;
+            return tex;
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(targetCamPos);
+            camera.lookAt(currentCamLookAt);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+            
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.3; 
+            container.appendChild(renderer.domElement);
+
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            scene.environment = pmremGenerator.fromEquirectangular(createEnvironmentMap()).texture; 
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); 
+            scene.add(ambientLight);
+            
+            const keyLight = new THREE.DirectionalLight(0xffffff, 3.5);
+            keyLight.position.set(5, 20, 10);
+            scene.add(keyLight);
+
+            const backLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            backLight.position.set(-10, 15, -20);
+            scene.add(backLight);
+
+            const rimLight = new THREE.SpotLight(0xffffff, 3.0);
+            rimLight.position.set(-15, 15, -15); 
+            rimLight.lookAt(0, 0, 0); 
+            rimLight.penumbra = 0.5;
+            scene.add(rimLight);
+
+            buildLaptop();
+            
+            calculateResponsiveZoom();
+            window.addEventListener('resize', onWindowResize, false);
+            window.addEventListener('scroll', updateScrollTargets, false);
+            
+            updateScrollTargets();
+            animate();
+        }
+
+        function calculateResponsiveZoom() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const heightDist = 13.5; 
+            const widthDist = 20.5 / aspect; 
+            finalZoomDistanceZ = -6.0 + Math.max(heightDist, widthDist);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            calculateResponsiveZoom();
+            updateScrollTargets(); 
+        }
+
+        function updateScrollTargets() {
+            const maxScroll = Math.max(1, document.body.scrollHeight - window.innerHeight);
+            const p = window.scrollY / maxScroll;
+
+            const CAM_START = new THREE.Vector3(0, 10, 45); 
+            const LOOK_START = new THREE.Vector3(0, -1, 0);
+            const CAM_END = new THREE.Vector3(0, 3.2, finalZoomDistanceZ);
+            const LOOK_END = new THREE.Vector3(0, 3.2, -6.0);
+
+            // Keep laptop perfectly centered and open at all times
+            targetLaptopY = -3;
+            targetLaptopRotY = 0;
+            targetLaptopRotX = 0;
+            targetLaptopRotZ = 0;
+            targetLidRotX = 0;
+
+            // Scroll directly drives the cinematic zoom-in
+            let easeInOut = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+            targetCamPos.lerpVectors(CAM_START, CAM_END, easeInOut);
+            targetCamLookAt.lerpVectors(LOOK_START, LOOK_END, easeInOut);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const LERP_SPEED = 0.06;
+            
+            if (laptopGroup && hingeGroup) {
+                laptopGroup.position.y += (targetLaptopY - laptopGroup.position.y) * LERP_SPEED;
+                laptopGroup.rotation.y += (targetLaptopRotY - laptopGroup.rotation.y) * LERP_SPEED;
+                laptopGroup.rotation.x += (targetLaptopRotX - laptopGroup.rotation.x) * LERP_SPEED;
+                laptopGroup.rotation.z += (targetLaptopRotZ - laptopGroup.rotation.z) * LERP_SPEED;
+                
+                hingeGroup.rotation.x += (targetLidRotX - hingeGroup.rotation.x) * LERP_SPEED;
+            }
+
+            camera.position.lerp(targetCamPos, LERP_SPEED);
+            currentCamLookAt.lerp(targetCamLookAt, LERP_SPEED);
+            camera.lookAt(currentCamLookAt);
+            
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium 3D Laptop Experience</title>
+    
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            /* Beautiful gradient background to prove the 3D canvas is transparent */
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 50%, #e0c3fc 100%);
+            background-attachment: fixed;
+            overflow-x: hidden; 
+        }
+
+        /* Fixed full-screen canvas behind everything */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1; /* Keep it above background but below text */
+            pointer-events: none; /* Let clicks pass through to background/links */
+        }
+
+        /* The massive scroll space that triggers our animations */
+        .scroll-space {
+            height: 600vh; 
+            width: 100%;
+            position: relative;
+            z-index: 0;
+        }
+
+        /* The Hero Content Wrapper */
+        .hero-content {
+            position: sticky;
+            top: 25vh;
+            z-index: 10;
+            pointer-events: none; /* Prevent this full-width container from blocking */
+        }
+        
+        /* Re-enable clicks specifically for interactive elements */
+        .hero-content button, .hero-content a {
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Hero UI Overlay -->
+    <div class="scroll-space">
+        <div class="hero-content flex flex-col items-center justify-center px-4">
+            <h1 class="text-6xl md:text-8xl font-extrabold text-slate-900 tracking-tighter drop-shadow-sm text-center mb-6">
+                Limitless Power.
+            </h1>
+            <p class="text-xl md:text-2xl text-slate-700 max-w-2xl text-center font-light leading-relaxed mb-10">
+                Experience the next generation of computing. <br/> 
+                <span class="font-medium text-slate-500 text-lg">Scroll down to explore the hardware.</span>
+            </p>
+            <button class="px-10 py-4 bg-slate-900 text-white rounded-full font-semibold hover:bg-black transition-all transform hover:scale-105 shadow-2xl text-lg flex items-center gap-2">
+                Pre-order Now
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <script>
+        let scene, camera, renderer;
+        let laptopGroup, hingeGroup;
+
+        // Strict target variables mapped strictly to scroll (no idle floating)
+        let targetLaptopY = -15; 
+        let targetLaptopRotY = 0;
+        let targetLaptopRotX = 0;
+        let targetLaptopRotZ = 0;
+        let targetLidRotX = (Math.PI / 2) * 0.7; 
+        
+        let targetCamPos = new THREE.Vector3(0, 10, 28);
+        let currentCamLookAt = new THREE.Vector3(0, -1, 0);
+        let targetCamLookAt = new THREE.Vector3(0, -1, 0);
+        
+        let finalZoomDistanceZ = 6.0;
+
+        // Premium Material Colors
+        const colors = {
+            aluminum: 0x787b80,     // Apple Space Gray
+            darkGray: 0x050505,     // Double-anodized jet black keyboard well
+            black: 0x020202,        // Vantablack-like keys & bezels
+            ports: 0x000000,        // Absolute black for IO voids
+            feet: 0x111111          // Matte rubber pucks
+        };
+
+        const materials = {
+            aluminum: new THREE.MeshStandardMaterial({ 
+                color: colors.aluminum, 
+                metalness: 0.75, 
+                roughness: 0.35 
+            }),
+            keyboard: new THREE.MeshStandardMaterial({ 
+                color: colors.darkGray, 
+                roughness: 0.7,
+                metalness: 0.1 
+            }),
+            keys: new THREE.MeshStandardMaterial({ 
+                color: colors.black, 
+                roughness: 0.4,
+                metalness: 0.1 
+            }),
+            bezel: new THREE.MeshStandardMaterial({ 
+                color: colors.black, 
+                roughness: 0.05,
+                metalness: 0.9 
+            }),
+            glass: new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                metalness: 0.1,
+                roughness: 0.05,
+                transmission: 0.9,
+                transparent: true,
+                opacity: 0.3,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.1
+            }),
+            port: new THREE.MeshBasicMaterial({ color: colors.ports }),
+            feet: new THREE.MeshStandardMaterial({ color: colors.feet, roughness: 0.95 })
+        };
+
+        function createEnvironmentMap() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            const grad = ctx.createLinearGradient(0, 0, 0, 512);
+            grad.addColorStop(0, '#1a1a1a');
+            grad.addColorStop(1, '#050505');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1024, 512);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(512, 0, 600, 200, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fillRect(0, 200, 100, 100);
+            ctx.fillRect(924, 200, 100, 100);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.mapping = THREE.EquirectangularReflectionMapping;
+            return tex;
+        }
+
+        function createScreenTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2560; 
+            canvas.height = 1600;
+            const ctx = canvas.getContext('2d');
+            
+            const bgGrad = ctx.createLinearGradient(0, 0, 2560, 1600);
+            bgGrad.addColorStop(0, '#5a789a');   
+            bgGrad.addColorStop(0.5, '#999cbd'); 
+            bgGrad.addColorStop(1, '#e2b3c1');   
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 2560, 1600);
+            
+            ctx.beginPath();
+            ctx.moveTo(0, 1100);
+            ctx.bezierCurveTo(800, 500, 1700, 1300, 2560, 700);
+            ctx.lineTo(2560, 1600);
+            ctx.lineTo(0, 1600);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fill();
+
+            const sunGrad = ctx.createRadialGradient(1280, 900, 0, 1280, 900, 400);
+            sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = sunGrad;
+            ctx.beginPath();
+            ctx.arc(1280, 900, 400, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, 2560, 60);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            const dockWidth = 800;
+            const dockHeight = 110;
+            const dockX = (2560 - dockWidth) / 2;
+            const dockY = 1600 - dockHeight - 30;
+            ctx.roundRect(dockX, dockY, dockWidth, dockHeight, 40);
+            ctx.fill();
+
+            const iconColors = ['#ff5f56', '#ffbd2e', '#27c93f', '#007aff', '#5ac8fa', '#af52de', '#ff2d55', '#ff9500'];
+            const iconSize = 75;
+            const iconSpacing = 20;
+            const startX = dockX + (dockWidth - (iconColors.length * iconSize + (iconColors.length - 1) * iconSpacing)) / 2;
+            
+            for (let i = 0; i < iconColors.length; i++) {
+                ctx.fillStyle = iconColors[i];
+                ctx.roundRect(startX + i * (iconSize + iconSpacing), dockY + (dockHeight - iconSize) / 2, iconSize, iconSize, 18);
+                ctx.fill();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.minFilter = THREE.LinearFilter;
+            tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        function createAppleLogoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000'; 
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = '#ffffff'; 
+            
+            const path = new Path2D("M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z");
+            
+            ctx.translate(64, 0); 
+            ctx.fill(path);
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSpeakerMaterials(repeatX, repeatY) {
+            const size = 260; 
+            
+            const colorCanvas = document.createElement('canvas');
+            colorCanvas.width = size;
+            colorCanvas.height = size;
+            const cCtx = colorCanvas.getContext('2d');
+            
+            cCtx.fillStyle = '#73767b'; 
+            cCtx.fillRect(0, 0, size, size);
+            
+            cCtx.fillStyle = '#000000'; 
+            const gap = 10;
+            const radius = 2.8;
+            for(let y = 0; y <= size; y += gap) {
+                const offsetX = (y / gap) % 2 === 0 ? 0 : gap / 2;
+                for(let x = -gap; x <= size + gap; x += gap) {
+                    cCtx.beginPath(); 
+                    cCtx.arc(x + offsetX, y, radius, 0, Math.PI * 2); 
+                    cCtx.fill();
+                }
+            }
+            
+            const colorMap = new THREE.CanvasTexture(colorCanvas);
+            colorMap.wrapS = THREE.RepeatWrapping;
+            colorMap.wrapT = THREE.RepeatWrapping;
+            colorMap.repeat.set(repeatX, repeatY);
+            colorMap.anisotropy = 16;
+            
+            const bumpCanvas = document.createElement('canvas');
+            bumpCanvas.width = size;
+            bumpCanvas.height = size;
+            const bCtx = bumpCanvas.getContext('2d');
+            
+            bCtx.fillStyle = '#ffffff'; 
+            bCtx.fillRect(0, 0, size, size);
+            
+            for(let y = 0; y <= size; y += gap) {
+                const offsetX = (y / gap) % 2 === 0 ? 0 : gap / 2;
+                for(let x = -gap; x <= size + gap; x += gap) {
+                    const grad = bCtx.createRadialGradient(x + offsetX, y, 0, x + offsetX, y, radius);
+                    grad.addColorStop(0, '#000000'); 
+                    grad.addColorStop(1, '#ffffff'); 
+                    
+                    bCtx.fillStyle = grad;
+                    bCtx.beginPath(); 
+                    bCtx.arc(x + offsetX, y, radius, 0, Math.PI * 2); 
+                    bCtx.fill();
+                }
+            }
+            
+            const bumpMap = new THREE.CanvasTexture(bumpCanvas);
+            bumpMap.wrapS = THREE.RepeatWrapping;
+            bumpMap.wrapT = THREE.RepeatWrapping;
+            bumpMap.repeat.set(repeatX, repeatY);
+            bumpMap.anisotropy = 16;
+            
+            return { colorMap, bumpMap };
+        }
+
+        function createKeyDecal(primary, secondary = '', isIcon = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, 128, 128);
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'; 
+            ctx.textBaseline = 'middle';
+            
+            if (isIcon) {
+                ctx.textAlign = 'left';
+                ctx.font = '300 22px "SF Pro", "Inter", sans-serif';
+                ctx.fillText(primary, 16, 96);
+                if (secondary) {
+                    ctx.font = '400 28px "SF Pro", "Inter", sans-serif';
+                    ctx.fillText(secondary, 96, 96); 
+                }
+            } else if (secondary !== '') {
+                ctx.textAlign = 'center';
+                ctx.font = '400 26px "SF Pro", "Inter", sans-serif';
+                ctx.fillText(primary, 64, 40);
+                ctx.font = '400 28px "SF Pro", "Inter", sans-serif';
+                ctx.fillText(secondary, 64, 88);
+            } else {
+                ctx.textAlign = 'center';
+                ctx.font = '400 32px "SF Pro", "Inter", sans-serif';
+                ctx.fillText(primary, 64, 64);
+            }
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 16;
+            return tex;
+        }
+
+        function createRoundedPlane(width, height, radius) {
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = -height / 2;
+            shape.moveTo(x, y + radius);
+            shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+            shape.lineTo(x + width - radius, y + height);
+            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+            shape.lineTo(x + width, y + radius);
+            shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+            shape.lineTo(x + radius, y);
+            shape.quadraticCurveTo(x, y, x, y + radius);
+            
+            const geometry = new THREE.ShapeGeometry(shape);
+            const pos = geometry.attributes.position;
+            const uv = new Float32Array(pos.count * 2);
+            for(let i = 0; i < pos.count; i++) {
+                uv[i * 2] = (pos.getX(i) - x) / width;
+                uv[i * 2 + 1] = (pos.getY(i) - y) / height;
+            }
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            return geometry;
+        }
+
+        function createNotchGeometry() {
+            const width = 2.6, height = 0.45, topRadius = 0.1, bottomRadius = 0.15;
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = 0; 
+            shape.moveTo(x - topRadius, y);
+            shape.quadraticCurveTo(x, y, x, y - topRadius); 
+            shape.lineTo(x, y - height + bottomRadius);     
+            shape.quadraticCurveTo(x, y - height, x + bottomRadius, y - height); 
+            shape.lineTo(-x - bottomRadius, y - height);    
+            shape.quadraticCurveTo(-x, y - height, -x, y - height + bottomRadius); 
+            shape.lineTo(-x, y - topRadius);                
+            shape.quadraticCurveTo(-x, y, -x + topRadius, y); 
+            shape.lineTo(x - topRadius, y);                 
+            return new THREE.ShapeGeometry(shape);
+        }
+
+        function createRoundedBox(width, height, depth, radius, bevelSize = 0.02) {
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = -height / 2;
+            shape.moveTo(x, y + radius);
+            shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+            shape.lineTo(x + width - radius, y + height);
+            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+            shape.lineTo(x + width, y + radius);
+            shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+            shape.lineTo(x + radius, y);
+            shape.quadraticCurveTo(x, y, x, y + radius);
+            
+            const extrudeSettings = {
+                depth: bevelSize > 0 ? Math.max(0.001, depth - (bevelSize * 2)) : depth,
+                bevelEnabled: bevelSize > 0,
+                bevelSegments: 8, 
+                steps: 1,
+                bevelSize: bevelSize,
+                bevelThickness: bevelSize
+            };
+            const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geometry.center(); 
+            return geometry;
+        }
+
+        function buildLaptop() {
+            laptopGroup = new THREE.Group();
+
+            const baseGeo = createRoundedBox(16.4, 11.8, 0.25, 0.9, 0.03);
+            baseGeo.rotateX(-Math.PI / 2); 
+            const baseMesh = new THREE.Mesh(baseGeo, materials.aluminum);
+            baseMesh.position.y = 0.125;
+            baseMesh.castShadow = true;
+            baseMesh.receiveShadow = true;
+            laptopGroup.add(baseMesh);
+
+            const notchGeo = createRoundedBox(2.4, 0.12, 0.15, 0.04, 0);
+            const notchMesh = new THREE.Mesh(notchGeo, materials.port);
+            notchMesh.position.set(0, 0.25, 5.86);
+            laptopGroup.add(notchMesh);
+
+            const footGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.04, 32);
+            [[-7.1, -0.01, -4.8], [7.1, -0.01, -4.8], [-7.1, -0.01, 4.8], [7.1, -0.01, 4.8]].forEach(pos => {
+                const foot = new THREE.Mesh(footGeo, materials.feet);
+                foot.position.set(...pos);
+                laptopGroup.add(foot);
+            });
+
+            const portGroup = new THREE.Group();
+            const pinMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 1, roughness: 0.2 });
+
+            const magsafeGroup = new THREE.Group();
+            magsafeGroup.add(new THREE.Mesh(createRoundedBox(0.48, 0.12, 0.12, 0.05, 0), materials.port));
+            const msPlate = new THREE.Mesh(createRoundedBox(0.42, 0.08, 0.06, 0.02, 0), materials.aluminum);
+            msPlate.position.set(0, 0, 0.02); magsafeGroup.add(msPlate);
+            for(let i = -2; i <= 2; i++) {
+                const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.04, 8), pinMat);
+                pin.rotation.x = Math.PI / 2; pin.position.set(i * 0.06, 0, 0.04); magsafeGroup.add(pin);
+            }
+            magsafeGroup.position.set(-8.2, 0.13, -3.5); magsafeGroup.rotation.y = -Math.PI / 2; portGroup.add(magsafeGroup);
+
+            function createUSBC(x, z, side) {
+                const group = new THREE.Group();
+                group.add(new THREE.Mesh(createRoundedBox(0.35, 0.12, 0.1, 0.05, 0), materials.port));
+                const tongue = new THREE.Mesh(createRoundedBox(0.22, 0.03, 0.08, 0.01, 0), materials.keyboard);
+                tongue.position.set(0, 0, 0.01); group.add(tongue);
+                group.position.set(x, 0.13, z); group.rotation.y = side === 'left' ? -Math.PI / 2 : Math.PI / 2;
+                portGroup.add(group);
+            }
+            createUSBC(-8.2, -2.5, 'left'); createUSBC(-8.2, -1.8, 'left'); createUSBC(8.2, -2.0, 'right');
+
+            const audioGroup = new THREE.Group();
+            audioGroup.add(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 8, 24), materials.aluminum));
+            const audioHole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 16), materials.port);
+            audioHole.rotation.x = Math.PI / 2; audioGroup.add(audioHole);
+            audioGroup.position.set(-8.2, 0.13, -0.5); audioGroup.rotation.y = -Math.PI / 2; portGroup.add(audioGroup);
+
+            const hdmiGroup = new THREE.Group();
+            const hdmiShape = new THREE.Shape();
+            const hw = 0.28, hh = 0.09, taper = 0.18; 
+            hdmiShape.moveTo(-hw, hh); hdmiShape.lineTo(hw, hh); hdmiShape.lineTo(hw, -hh + 0.04); hdmiShape.lineTo(taper, -hh); hdmiShape.lineTo(-taper, -hh); hdmiShape.lineTo(-hw, -hh + 0.04); hdmiShape.lineTo(-hw, hh); 
+            const hdmiGeo = new THREE.ExtrudeGeometry(hdmiShape, { depth: 0.1, bevelEnabled: true, bevelSize: 0.005, bevelThickness: 0.005, bevelSegments: 2 });
+            hdmiGeo.center(); hdmiGroup.add(new THREE.Mesh(hdmiGeo, materials.port));
+            const hdmiTongue = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.08), materials.keyboard);
+            hdmiTongue.position.set(0, 0.02, 0.01); hdmiGroup.add(hdmiTongue);
+            const hdmiShield = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.04), materials.aluminum);
+            hdmiShield.position.set(0, 0, -0.03); hdmiGroup.add(hdmiShield);
+            hdmiGroup.position.set(8.2, 0.13, -3.0); hdmiGroup.rotation.y = Math.PI / 2; portGroup.add(hdmiGroup);
+
+            const sdGroup = new THREE.Group();
+            sdGroup.add(new THREE.Mesh(createRoundedBox(0.8, 0.06, 0.15, 0.02, 0), materials.port));
+            const sdLip = new THREE.Mesh(createRoundedBox(0.76, 0.02, 0.1, 0.01, 0), materials.keyboard);
+            sdLip.position.set(0, -0.015, 0.02); sdGroup.add(sdLip);
+            sdGroup.position.set(8.2, 0.13, -0.8); sdGroup.rotation.y = Math.PI / 2; portGroup.add(sdGroup);
+            
+            laptopGroup.add(portGroup);
+
+            const trackpadBorder = new THREE.Mesh(createRoundedBox(6.82, 4.62, 0.01, 0.25, 0).rotateX(-Math.PI / 2), materials.port);
+            trackpadBorder.position.set(0, 0.2505, 3.3); laptopGroup.add(trackpadBorder);
+            const trackpadMesh = new THREE.Mesh(createRoundedBox(6.78, 4.58, 0.01, 0.23, 0).rotateX(-Math.PI / 2), materials.aluminum);
+            trackpadMesh.position.set(0, 0.251, 3.3); laptopGroup.add(trackpadMesh);
+
+            const keyboardBaseMesh = new THREE.Mesh(createRoundedBox(13.25, 5.65, 0.01, 0.2, 0).rotateX(-Math.PI / 2), materials.keyboard);
+            keyboardBaseMesh.position.set(0, 0.251, -2.0); laptopGroup.add(keyboardBaseMesh);
+
+            const speakerWidth = 1.35;
+            const speakerHeight = 5.75;
+            const spkRadius = 0.12;
+
+            const repX = 2.5; 
+            const repY = repX * (speakerHeight / speakerWidth); 
+            
+            const spkMaps = createSpeakerMaterials(repX, repY);
+            const speakerMat = new THREE.MeshStandardMaterial({ 
+                map: spkMaps.colorMap,
+                bumpMap: spkMaps.bumpMap,
+                bumpScale: 0.015,
+                color: 0xffffff,
+                metalness: 0.8,
+                roughness: 0.35 
+            });
+
+            const borderGeo = createRoundedBox(speakerWidth + 0.05, speakerHeight + 0.05, 0.005, spkRadius + 0.02, 0).rotateX(-Math.PI / 2);
+            const borderMat = new THREE.MeshStandardMaterial({ color: 0x66696d, metalness: 0.85, roughness: 0.5 });
+
+            const speakerGeo = createRoundedBox(speakerWidth, speakerHeight, 0.005, spkRadius, 0).rotateX(-Math.PI / 2);
+
+            const speakerLGroup = new THREE.Group();
+            const borderL = new THREE.Mesh(borderGeo, borderMat);
+            const grillL = new THREE.Mesh(speakerGeo, speakerMat);
+            grillL.position.y = 0.001; 
+            speakerLGroup.add(borderL, grillL);
+            speakerLGroup.position.set(-7.4, 0.251, -2.0);
+            laptopGroup.add(speakerLGroup);
+
+            const speakerRGroup = new THREE.Group();
+            const borderR = new THREE.Mesh(borderGeo, borderMat);
+            const grillR = new THREE.Mesh(speakerGeo, speakerMat);
+            grillR.position.y = 0.001;
+            speakerRGroup.add(borderR, grillR);
+            speakerRGroup.position.set(7.4, 0.251, -2.0);
+            laptopGroup.add(speakerRGroup);
+
+            const u = 0.74, g = 0.12; 
+            const layout = [
+                [ {w: 1.5, p:'esc', type:'sys'}, {w: 1, p:'F1'}, {w: 1, p:'F2'}, {w: 1, p:'F3'}, {w: 1, p:'F4'}, {w: 1, p:'F5'}, {w: 1, p:'F6'}, {w: 1, p:'F7'}, {w: 1, p:'F8'}, {w: 1, p:'F9'}, {w: 1, p:'F10'}, {w: 1, p:'F11'}, {w: 1, p:'F12'}, {w: 1.5, id: 'touchid'} ],
+                [ {w: 1, p:'~', s:'`'}, {w: 1, p:'!', s:'1'}, {w: 1, p:'@', s:'2'}, {w: 1, p:'#', s:'3'}, {w: 1, p:'$', s:'4'}, {w: 1, p:'%', s:'5'}, {w: 1, p:'^', s:'6'}, {w: 1, p:'&', s:'7'}, {w: 1, p:'*', s:'8'}, {w: 1, p:'(', s:'9'}, {w: 1, p:')', s:'0'}, {w: 1, p:'_', s:'-'}, {w: 1, p:'+', s:'='}, {w: 2, p:'delete', type:'sys'} ],
+                [ {w: 1.5, p:'tab', type:'sys'}, {w: 1, p:'Q'}, {w: 1, p:'W'}, {w: 1, p:'E'}, {w: 1, p:'R'}, {w: 1, p:'T'}, {w: 1, p:'Y'}, {w: 1, p:'U'}, {w: 1, p:'I'}, {w: 1, p:'O'}, {w: 1, p:'P'}, {w: 1, p:'{', s:'['}, {w: 1, p:'}', s:']'}, {w: 1.5, p:'|', s:'\\'} ],
+                [ {w: 1.75, p:'caps lock', type:'sys'}, {w: 1, p:'A'}, {w: 1, p:'S'}, {w: 1, p:'D'}, {w: 1, p:'F'}, {w: 1, p:'G'}, {w: 1, p:'H'}, {w: 1, p:'J'}, {w: 1, p:'K'}, {w: 1, p:'L'}, {w: 1, p:':', s:';'}, {w: 1, p:'"', s:'\''}, {w: 2.25, p:'return', type:'sys'} ],
+                [ {w: 2.25, p:'shift', type:'sys'}, {w: 1, p:'Z'}, {w: 1, p:'X'}, {w: 1, p:'C'}, {w: 1, p:'V'}, {w: 1, p:'B'}, {w: 1, p:'N'}, {w: 1, p:'M'}, {w: 1, p:'<', s:','}, {w: 1, p:'>', s:'.'}, {w: 1, p:'?', s:'/'}, {w: 2.75, p:'shift', type:'sys'} ],
+                [ {w: 1, p:'fn', type:'sys'}, {w: 1, p:'control', s:'⌃', type:'sys'}, {w: 1, p:'option', s:'⌥', type:'sys'}, {w: 1.25, p:'command', s:'⌘', type:'sys'}, {w: 5.5, p:''}, {w: 1.25, p:'command', s:'⌘', type:'sys'}, {w: 1, p:'option', s:'⌥', type:'sys'}, {w: 1, p:'◀'}, {w: 1, type: 'updown'}, {w: 1, p:'▶'} ]
+            ];
+
+            const totalWidth = 15 * u + 14 * g;
+            const startX = -totalWidth / 2;
+
+            layout.forEach((row, rowIndex) => {
+                let currentX = startX;
+                const zPos = -2.0 + (rowIndex - 2.5) * (u + g);
+
+                row.forEach(key => {
+                    const physicalWidth = key.w * u + (key.w - 1) * g;
+                    const xPos = currentX + physicalWidth / 2;
+                    const keyHeight = 0.08; 
+
+                    if (key.type === 'updown') {
+                        const halfHeight = (u - g) / 2; 
+                        const upGeo = createRoundedBox(physicalWidth, halfHeight, keyHeight, 0.08, 0.015).rotateX(-Math.PI / 2);
+                        const upMesh = new THREE.Mesh(upGeo, materials.keys);
+                        upMesh.position.set(xPos, 0.25, zPos - u/2 + halfHeight/2);
+                        laptopGroup.add(upMesh);
+                        const upDecal = new THREE.Mesh(new THREE.PlaneGeometry(physicalWidth*0.9, halfHeight*0.9), new THREE.MeshBasicMaterial({map: createKeyDecal('▲'), transparent: true}));
+                        upDecal.rotation.x = -Math.PI / 2; upDecal.position.set(xPos, 0.292, zPos - u/2 + halfHeight/2);
+                        laptopGroup.add(upDecal);
+
+                        const downGeo = createRoundedBox(physicalWidth, halfHeight, keyHeight, 0.08, 0.015).rotateX(-Math.PI / 2);
+                        const downMesh = new THREE.Mesh(downGeo, materials.keys);
+                        downMesh.position.set(xPos, 0.25, zPos + u/2 - halfHeight/2);
+                        laptopGroup.add(downMesh);
+                        const downDecal = new THREE.Mesh(new THREE.PlaneGeometry(physicalWidth*0.9, halfHeight*0.9), new THREE.MeshBasicMaterial({map: createKeyDecal('▼'), transparent: true}));
+                        downDecal.rotation.x = -Math.PI / 2; downDecal.position.set(xPos, 0.292, zPos + u/2 - halfHeight/2);
+                        laptopGroup.add(downDecal);
+                    } else {
+                        const radius = key.id === 'touchid' ? 0.15 : 0.08;
+                        const keyGeo = createRoundedBox(physicalWidth, u, keyHeight, radius, 0.015).rotateX(-Math.PI / 2);
+                        
+                        let mat = materials.keys;
+                        if(key.id === 'touchid') {
+                            mat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.15, metalness: 0.8 }); 
+                            const ringGeo = new THREE.TorusGeometry(0.24, 0.03, 16, 32);
+                            const ringMesh = new THREE.Mesh(ringGeo, materials.aluminum);
+                            ringMesh.rotation.x = Math.PI / 2; ringMesh.position.set(xPos, 0.29, zPos); 
+                            laptopGroup.add(ringMesh);
+                        }
+                        
+                        const keyMesh = new THREE.Mesh(keyGeo, mat);
+                        keyMesh.position.set(xPos, 0.25, zPos);
+                        laptopGroup.add(keyMesh);
+
+                        if (key.p && key.id !== 'touchid') {
+                            const decalGeo = new THREE.PlaneGeometry(physicalWidth * 0.9, u * 0.9);
+                            const decalMat = new THREE.MeshBasicMaterial({
+                                map: createKeyDecal(key.p, key.s || '', key.type === 'sys'),
+                                transparent: true, opacity: 0.9
+                            });
+                            const decal = new THREE.Mesh(decalGeo, decalMat);
+                            decal.rotation.x = -Math.PI / 2;
+                            decal.position.set(xPos, 0.292, zPos); 
+                            laptopGroup.add(decal);
+                        }
+                    }
+                    currentX += physicalWidth + g;
+                });
+            });
+
+            hingeGroup = new THREE.Group();
+            hingeGroup.position.set(0, 0.25, -5.85); 
+            hingeGroup.rotation.x = targetLidRotX; 
+
+            const clutchMesh = new THREE.Mesh(createRoundedBox(12.5, 0.6, 0.3, 0.1, 0), materials.keyboard);
+            hingeGroup.add(clutchMesh);
+
+            const lidMesh = new THREE.Mesh(createRoundedBox(16.4, 11.8, 0.15, 0.9, 0.02), materials.aluminum);
+            lidMesh.position.set(0, 5.9, -0.075); 
+            hingeGroup.add(lidMesh);
+
+            const logoGeo = new THREE.PlaneGeometry(1.8, 1.8);
+            const logoMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, metalness: 1.0, roughness: 0.0, 
+                alphaMap: createAppleLogoTexture(), transparent: true, alphaTest: 0.5, side: THREE.FrontSide
+            });
+            const logoMesh = new THREE.Mesh(logoGeo, logoMat);
+            logoMesh.position.set(0, 5.9, -0.151); 
+            logoMesh.rotation.y = Math.PI; 
+            hingeGroup.add(logoMesh);
+
+            const gasketMesh = new THREE.Mesh(createRoundedBox(16.44, 11.84, 0.01, 0.91, 0), materials.keyboard);
+            gasketMesh.position.set(0, 5.9, 0.005);
+            hingeGroup.add(gasketMesh);
+
+            const bezelMesh = new THREE.Mesh(createRoundedBox(16.4, 11.8, 0.02, 0.9, 0), materials.bezel);
+            bezelMesh.position.set(0, 5.9, 0.01);
+            hingeGroup.add(bezelMesh);
+
+            const screenMaterial = new THREE.MeshBasicMaterial({ map: createScreenTexture(), side: THREE.FrontSide });
+            const screenMesh = new THREE.Mesh(createRoundedPlane(15.7, 10.5, 0.4), screenMaterial);
+            screenMesh.position.set(0, 5.9, 0.021); 
+            hingeGroup.add(screenMesh);
+
+            const cameraNotchMesh = new THREE.Mesh(createNotchGeometry(), materials.bezel);
+            cameraNotchMesh.position.set(0, 11.15, 0.022); 
+            hingeGroup.add(cameraNotchMesh);
+
+            const glassMesh = new THREE.Mesh(createRoundedPlane(16.2, 11.6, 0.85), materials.glass);
+            glassMesh.position.set(0, 5.9, 0.03); 
+            hingeGroup.add(glassMesh);
+
+            laptopGroup.add(hingeGroup);
+            laptopGroup.position.set(0, targetLaptopY, 0); 
+            scene.add(laptopGroup);
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            // Background is completely removed/transparent so HTML styles show through
+            scene.background = null; 
+
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(targetCamPos);
+            camera.lookAt(currentCamLookAt);
+
+            // Crucial Change: { alpha: true } ensures the WebGL context has a transparent background
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            const envTexture = pmremGenerator.fromEquirectangular(createEnvironmentMap()).texture;
+            scene.environment = envTexture; 
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            keyLight.position.set(5, 20, 10);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.bias = -0.0001; 
+            scene.add(keyLight);
+
+            const rimLight = new THREE.SpotLight(0xffffff, 2.0);
+            rimLight.position.set(-15, 15, -15);
+            rimLight.lookAt(0, 0, 0);
+            rimLight.penumbra = 0.5;
+            scene.add(rimLight);
+
+            buildLaptop();
+            
+            calculateResponsiveZoom();
+            window.addEventListener('resize', onWindowResize, false);
+            window.addEventListener('scroll', updateScrollTargets, false);
+            
+            updateScrollTargets();
+            animate();
+        }
+
+        function calculateResponsiveZoom() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const heightDist = 13.5; 
+            const widthDist = 20.5 / aspect; 
+            finalZoomDistanceZ = -6.0 + Math.max(heightDist, widthDist);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            calculateResponsiveZoom();
+            updateScrollTargets(); 
+        }
+
+        function updateScrollTargets() {
+            const maxScroll = Math.max(1, document.body.scrollHeight - window.innerHeight);
+            const p = window.scrollY / maxScroll;
+
+            if (p < 0.20) {
+                targetLaptopY = -15;
+                targetLaptopRotY = 0;
+                targetLaptopRotX = 0.2; 
+            } else if (p <= 0.40) {
+                let t = (p - 0.20) / 0.20;
+                let easeOutCubic = 1 - Math.pow(1 - t, 3); 
+                targetLaptopY = -15 + (12 * easeOutCubic); 
+                targetLaptopRotY = easeOutCubic * Math.PI * 2; 
+                targetLaptopRotX = 0.2 * (1 - easeOutCubic);
+            } else {
+                targetLaptopY = -3;
+                targetLaptopRotY = Math.PI * 2;
+                targetLaptopRotX = 0;
+            }
+
+            const LID_CLOSED = Math.PI / 2;
+            const LID_OPEN = -0.25; 
+            const LID_30_PCT = LID_CLOSED - (LID_CLOSED - LID_OPEN) * 0.30; 
+            
+            if (p < 0.45) {
+                targetLidRotX = LID_30_PCT; 
+                targetLaptopRotZ = 0;
+            } else if (p <= 0.65) {
+                let t = (p - 0.45) / 0.20;
+                let easeInOut = -(Math.cos(Math.PI * t) - 1) / 2;
+                targetLidRotX = LID_30_PCT + easeInOut * (LID_OPEN - LID_30_PCT);
+                targetLaptopRotZ = Math.sin(t * Math.PI) * 0.05; 
+            } else {
+                targetLidRotX = LID_OPEN;
+                targetLaptopRotZ = 0;
+            }
+
+            const CAM_START = new THREE.Vector3(0, 10, 28);
+            const LOOK_START = new THREE.Vector3(0, -1, 0);
+            const CAM_END = new THREE.Vector3(0, 3.2, finalZoomDistanceZ);
+            const LOOK_END = new THREE.Vector3(0, 3.2, -6.0);
+
+            if (p < 0.70) {
+                targetCamPos.copy(CAM_START);
+                targetCamLookAt.copy(LOOK_START);
+            } else if (p <= 0.95) {
+                let t = (p - 0.70) / 0.25;
+                let easeInOut = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                targetCamPos.lerpVectors(CAM_START, CAM_END, easeInOut);
+                targetCamLookAt.lerpVectors(LOOK_START, LOOK_END, easeInOut);
+            } else {
+                targetCamPos.copy(CAM_END);
+                targetCamLookAt.copy(LOOK_END);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const LERP_SPEED = 0.08;
+            
+            if (laptopGroup && hingeGroup) {
+                laptopGroup.position.y += (targetLaptopY - laptopGroup.position.y) * LERP_SPEED;
+                laptopGroup.rotation.y += (targetLaptopRotY - laptopGroup.rotation.y) * LERP_SPEED;
+                laptopGroup.rotation.x += (targetLaptopRotX - laptopGroup.rotation.x) * LERP_SPEED;
+                laptopGroup.rotation.z += (targetLaptopRotZ - laptopGroup.rotation.z) * LERP_SPEED;
+                
+                hingeGroup.rotation.x += (targetLidRotX - hingeGroup.rotation.x) * LERP_SPEED;
+            }
+
+            camera.position.lerp(targetCamPos, LERP_SPEED);
+            currentCamLookAt.lerp(targetCamLookAt, LERP_SPEED);
+            camera.lookAt(currentCamLookAt);
+            
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
