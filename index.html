@@ -39,6 +39,17 @@
     </style>
 </head>
 <body>
+    <div id="skeleton-loader" class="fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-700 pointer-events-none">
+        <div class="animate-pulse flex flex-col items-center">
+            <!-- Sleek Laptop Screen Skeleton -->
+            <div class="w-64 h-40 bg-gray-200 rounded-xl mb-1 shadow-inner"></div>
+            <!-- Laptop Base Skeleton -->
+            <div class="w-72 h-3 bg-gray-300 rounded-b-xl rounded-t-sm shadow-md"></div>
+            <!-- Loading Text -->
+            <div class="mt-8 text-gray-400 font-medium tracking-widest text-sm uppercase">Loading Experience...</div>
+        </div>
+    </div>
+    
     <div id="canvas-container"></div>
     <div class="scroll-space"></div>
 
@@ -52,13 +63,30 @@
         let targetLaptopRotZ = 0;
         let targetLidRotX = Math.PI / 4; // Starts 45 degrees closed
         
-        // Prevent wild initial flying by setting variables to their approximate final framing
-        let targetCamPos = new THREE.Vector3(0, 3.15, 6.0); 
-        let currentCamLookAt = new THREE.Vector3(0, 3.15, -5.85);
-        let targetCamLookAt = new THREE.Vector3(0, 3.15, -5.85);
+        let targetCamPos = new THREE.Vector3(0, 10, 45); 
+        let currentCamLookAt = new THREE.Vector3(0, -1, 0);
+        let targetCamLookAt = new THREE.Vector3(0, -1, 0);
         
         let finalZoomDistanceZ = 6.0;
         let screenMaterial;
+
+        let assetsLoaded = 0;
+        const totalAssets = 2; // Track both wallpaper and dock images
+
+        function checkLoadStatus() {
+            assetsLoaded++;
+            if (assetsLoaded >= totalAssets) {
+                hideLoader();
+            }
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('skeleton-loader');
+            if (loader && loader.style.opacity !== '0') {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 700);
+            }
+        }
 
         // FIXED: True Apple M2/M3 MacBook Pro Colors
         const colors = {
@@ -249,7 +277,9 @@
                     
                     // Force WebGL to update the texture once the dock image finishes loading
                     tex.needsUpdate = true;
+                    checkLoadStatus();
                 };
+                dockImg.onerror = () => checkLoadStatus(); // Prevent endless loading if image fails
                 
                 // Updated specific URL requested by the user
                 dockImg.src = 'https://joykumbhakar.github.io/ImageHost/Images/MacOSDockPanel.png';
@@ -262,11 +292,13 @@
             img.onload = () => {
                 ctx.drawImage(img, 0, 0, 2560, 1600);
                 drawUI();
+                checkLoadStatus();
             };
             img.onerror = () => {
                 ctx.fillStyle = fallbackBgGrad;
                 ctx.fillRect(0, 0, 2560, 1600);
                 drawUI();
+                checkLoadStatus();
             };
             img.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIgANQJ1l8VGpebTFSehheWW00YTqFYh1GFWLA8Cx23tXbhrEM08C5v84&s=10';
 
@@ -624,10 +656,13 @@
             scene.background = new THREE.Color(0xffffff);
 
             camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(targetCamPos);
+            camera.lookAt(currentCamLookAt);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
+            // High-performance optimization: Drop logarithmic depth buffer and request dedicated GPU
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // OPTIMIZATION: Capped device ratio to prevent ultra-high-res choking on mobile screens
+            // Limit pixel ratio to prevent low-end mobile devices from overheating
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25)); 
             
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -662,11 +697,9 @@
             window.addEventListener('scroll', updateScrollTargets, false);
             
             updateScrollTargets();
-
-            // FIX: Instantly snap camera to the dynamically calculated target before rendering begins
-            camera.position.copy(targetCamPos);
-            currentCamLookAt.copy(targetCamLookAt);
-            camera.lookAt(currentCamLookAt);
+            
+            // Fallback to hide loader if images take too long (e.g. slow network)
+            setTimeout(hideLoader, 4000);
             
             animate();
         }
