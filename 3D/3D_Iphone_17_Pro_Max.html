@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iPhone 17 Pro Max - Dark Blue Concept</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Preload iPhone 17 wallpaper and desk illustration at highest browser priority -->
+    <link rel="preload" href="/wallpaper_IPhone_(small_screen).png" as="image" fetchpriority="high">
+    <link rel="preload" href="/Working_on_Desk_Blazer.png" as="image" fetchpriority="high">
+    
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: transparent;
+            overflow: hidden;
+            height: 100vh;
+        }/* Canvas sits IN FRONT of everything so the phone occludes the text */
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+        /* Scroll space is behind the canvas */
+        .scroll-space { width: 100%; position: relative; z-index: 0; }
+        /* Hero text inside scroll space */
+        .hero-content { position: sticky; top: 14vh; z-index: 5; pointer-events: none; }
+        .hero-content button, .hero-content a { pointer-events: auto; }
+        #signature-svg { width: 100%; height: auto; display: block; transform: rotate(-8deg); }
+        #signature-svg path { fill: none; stroke: #1d4ed8; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.25)); }
+        @keyframes drawInk { to { stroke-dashoffset: 0; } }
+    
+    </style>
+</head>
+<body>
+
+    <div class="scroll-space">
+        <div class="hero-content flex flex-col items-center justify-center px-4">
+            <h2 class="text-5xl font-bold text-black -mb-2 z-10 relative tracking-tight">Hi I'm</h2>
+            <div id="signature-wrapper" class="w-full max-w-xs cursor-pointer z-10 relative mb-3" onclick="playSignatureAnimation()" title="Click to replay">
+                <svg id="signature-svg" viewBox="0 20 900 280" xmlns="http://www.w3.org/2000/svg">
+                    <g id="letter-j"><path d="M 75,90 C 90,75 125,65 160,75 C 135,80 115,100 100,140 C 85,180 65,230 45,230 C 25,230 25,200 40,180 C 55,160 75,150 95,165" /></g>
+                    <g id="letters-oy"><path d="M 115,165 C 95,160 90,185 105,200 C 120,215 140,205 135,185 C 130,170 115,165 115,165 M 135,185 C 145,170 150,175 145,195 C 140,215 160,210 165,195 C 170,180 175,230 165,255 C 150,290 120,290 120,270 C 120,250 145,240 165,225 C 190,205 210,195 230,185" /></g>
+                    <g id="letter-k-left"><path d="M 320,130 C 310,120 300,110 310,100 C 320,90 330,100 330,110 C 330,130 310,180 290,220 C 285,230 280,220 285,210" /></g>
+                    <g id="letter-k-right"><path d="M 370,110 C 360,130 330,150 315,165 C 310,170 315,175 320,175 C 340,175 350,190 360,205 C 370,220 380,220 395,200" /></g>
+                    <g id="letters-umbhakar"><path d="M 380,185 C 390,205 400,215 410,195 C 415,185 415,185 410,205 C 405,220 425,220 435,205 C 440,195 440,195 435,215 C 430,225 440,225 450,205 C 455,185 465,175 470,195 C 475,215 475,215 470,215 C 475,185 490,175 495,195 C 500,215 500,215 495,215 C 500,185 515,175 520,195 C 525,215 525,215 530,215 C 535,215 550,165 560,115 C 570,75 565,70 555,100 C 540,150 530,195 530,210 C 530,230 550,225 560,210 C 570,195 570,175 555,180 C 545,185 545,190 550,200 C 555,205 565,205 575,190 C 585,170 595,130 605,90 C 615,50 610,45 600,75 C 585,125 575,170 575,185 C 575,185 575,185 575,195 C 580,175 595,165 600,185 C 605,205 605,210 615,205 C 615,185 595,180 595,200 C 595,220 615,220 625,205 C 625,205 630,190 635,175 C 635,190 630,210 645,210 C 655,190 665,140 675,100 C 685,60 680,55 670,85 C 655,135 645,180 645,195 C 645,215 650,210 660,195 C 670,180 670,180 660,195 C 655,205 665,215 675,205 C 675,185 655,180 655,200 C 655,220 675,220 685,205 C 685,205 690,190 695,175 C 695,190 690,210 705,210 C 715,190 725,180 730,180 C 740,180 740,195 735,205 C 730,215 745,220 760,205 C 775,190 790,175 805,160" /></g>
+                    <g id="underlines"><path d="M 40,240 Q 450,230 850,220" stroke-width="4.5" /><path d="M 100,255 Q 450,245 800,235" stroke-width="3.5" /></g>
+                </svg>
+            </div>
+            <p class="text-base text-slate-600 font-medium mb-5 z-10 relative flex flex-col items-center gap-1.5">
+                <span class="flex items-center gap-2">Full-Stack Web Developer <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span>
+                <span class="flex items-center gap-2">Android Developer <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="text-green-500"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0004.5511-.4482.9997-.9993.9997zm-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997zm11.4045-6.02l1.9973-3.4592c.1158-.201.0471-.4581-.1546-.5739-.2014-.1154-.4577-.0467-.5735.1546l-2.0298 3.5158C15.722 8.3582 13.9371 7.95 12 7.95c-1.9367 0-3.7216.4082-5.1205 1.0086L4.849 5.4428c-.1158-.2013-.3725-.27-.5739-.1546-.201.1158-.2704.3729-.1546.5739l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3436-4.1021-2.6892-7.5743-6.1185-9.4396z"/></svg></span>
+            </p>
+            <a href="/hire" target="_top" class="px-7 py-3 bg-black text-white rounded-full font-bold text-base flex items-center gap-3 z-10 relative hover:bg-gray-800 transition-colors pointer-events-auto cursor-pointer">Contact me <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2Z"></path></svg></a>
+        </div>
+    </div>
+    
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // Precise Dimensions (Pro Max)
+        const phoneWidth = 3.10; 
+        const phoneHeight = 6.8;
+        const phoneDepth = 0.33; 
+        const cornerRadius = 0.58; 
+
+        // Scene Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = null;
+        
+
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(4, 1, 9);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1; 
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        container.appendChild(renderer.domElement);
+
+        
+
+        // Advanced Studio Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Reduced to prevent washing out the colors
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 2.2); // Increased contrast
+        keyLight.position.set(5, 8, 5);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.bias = -0.0001;
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight(0xeef2ff, 0.7); // Warmer, less intense to eliminate purple tint
+        fillLight.position.set(-6, -4, 5);
+        scene.add(fillLight);
+        
+        const rimLight = new THREE.SpotLight(0xffffff, 3.5);
+        rimLight.position.set(4, 6, -8);
+        rimLight.lookAt(0, 0, 0);
+        rimLight.penumbra = 0.5;
+        scene.add(rimLight);
+
+        const rimLight2 = new THREE.DirectionalLight(0xffffff, 1.2);
+        rimLight2.position.set(-5, 5, -8);
+        scene.add(rimLight2);
+
+        // Screen Wallpaper: iPhone 17 High-Res Wallpaper
+        const sW = phoneWidth - 0.16;
+        const sH = phoneHeight - 0.16;
+
+        // Dynamic composite canvas: wallpaper + developer working on desk in front
+        const screenCanvas = document.createElement('canvas');
+        screenCanvas.width = 1200;
+        screenCanvas.height = 2600;
+        const sCtx = screenCanvas.getContext('2d');
+
+        // Gradient fallback
+        const grad = sCtx.createLinearGradient(0, 0, 0, 2600);
+        grad.addColorStop(0, '#1c2e4a');
+        grad.addColorStop(0.35, '#0d1b2a');
+        grad.addColorStop(0.7, '#1b263b');
+        grad.addColorStop(1, '#0b131e');
+        sCtx.fillStyle = grad;
+        sCtx.fillRect(0, 0, 1200, 2600);
+
+        const screenTex = new THREE.CanvasTexture(screenCanvas);
+        screenTex.encoding = THREE.sRGBEncoding;
+        screenTex.minFilter = THREE.LinearFilter;
+        screenTex.generateMipmaps = false;
+
+        let wallpaperLoaded = false;
+        let deskLoaded = false;
+        const wallpaperImg = new Image();
+        const deskImg = new Image();
+
+        function renderScreenComposite() {
+            sCtx.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
+            if (wallpaperLoaded) {
+                sCtx.drawImage(wallpaperImg, 0, 0, screenCanvas.width, screenCanvas.height);
+            } else {
+                sCtx.fillStyle = grad;
+                sCtx.fillRect(0, 0, screenCanvas.width, screenCanvas.height);
+            }
+
+            if (deskLoaded) {
+                // Render developer at desk in front of the wallpaper (scaled, shifted down +540px, and shifted right +74px)
+                const dw = screenCanvas.width * 1.25;
+                const dh = dw * (deskImg.height / (deskImg.width || 1));
+                const dx = (screenCanvas.width - dw) / 2 + 74;
+                const dy = (screenCanvas.height - dh) / 2 + 540;
+                sCtx.drawImage(deskImg, dx, dy, dw, dh);
+            }
+
+            // Draw Contact Me Button directly on the wallpaper (Dynamic width, tight gap, Lucide icon)
+            sCtx.save();
+            sCtx.font = 'bold 50px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            const textMetrics = sCtx.measureText('Contact me');
+            const textW = textMetrics.width;
+            const iconSize = 40;
+            const gap = 20;
+            const padX = 44;
+            const bw = Math.round(padX + textW + gap + iconSize + padX);
+            const bh = 124;
+            const bx = 610;
+            const by = 1200;
+            const br = bh / 2;
+
+            // Flat background - no shadow, no border
+            sCtx.fillStyle = '#000000';
+            sCtx.beginPath();
+            if (sCtx.roundRect) {
+                sCtx.roundRect(bx, by, bw, bh, br);
+            } else {
+                sCtx.moveTo(bx + br, by);
+                sCtx.lineTo(bx + bw - br, by);
+                sCtx.quadraticCurveTo(bx + bw, by, bx + bw, by + br);
+                sCtx.lineTo(bx + bw, by + bh - br);
+                sCtx.quadraticCurveTo(bx + bw, by + bh, bx + bw - br, by + bh);
+                sCtx.lineTo(bx + br, by + bh);
+                sCtx.quadraticCurveTo(bx, by + bh, bx, by + bh - br);
+                sCtx.lineTo(bx + br, by);
+                sCtx.quadraticCurveTo(bx, by, bx + br, by);
+            }
+            sCtx.fill();
+
+            // Text
+            sCtx.fillStyle = '#ffffff';
+            sCtx.textBaseline = 'middle';
+            sCtx.textAlign = 'left';
+            sCtx.fillText('Contact me', bx + padX, by + bh / 2 + 1);
+
+            // Lucide Send icon
+            sCtx.save();
+            const iconScale = iconSize / 24;
+            const iconX = bx + padX + textW + gap;
+            const iconY = by + (bh - iconSize) / 2;
+            sCtx.translate(iconX, iconY);
+            sCtx.scale(iconScale, iconScale);
+            sCtx.strokeStyle = '#ffffff';
+            sCtx.lineWidth = 2.4;
+            sCtx.lineCap = 'round';
+            sCtx.lineJoin = 'round';
+            const lucideSend = new Path2D('M22 2L11 13 M22 2L15 22L11 13L2 9L22 2Z');
+            sCtx.stroke(lucideSend);
+            sCtx.restore();
+            sCtx.restore();
+
+            screenTex.needsUpdate = true;
+            if (typeof materials !== 'undefined' && materials.screen) {
+                materials.screen.map = screenTex;
+                materials.screen.needsUpdate = true;
+            }
+        }
+
+        wallpaperImg.onload = () => {
+            wallpaperLoaded = true;
+            renderScreenComposite();
+        };
+        deskImg.onload = () => {
+            deskLoaded = true;
+            renderScreenComposite();
+        };
+
+        wallpaperImg.src = '/wallpaper_IPhone_(small_screen).png';
+        deskImg.src = '/Working_on_Desk_Blazer.png';
+
+        // FIXED: Pure dark slate/navy without the magenta/purple tint
+
+        const colors = {
+            base: 0x111622, // Purer dark navy titanium frame
+            matte: 0x0e111a, // Ultra dark matte back glass (almost black)
+            bump: 0x121724,  // Slightly offset camera bump color
+            logo: 0x040508,  // Pure dark glossy logo
+            panelLine: 0x090c14 // Darker groove color
+        };
+
+        const materials = {
+            frame: new THREE.MeshPhysicalMaterial({ color: colors.base, metalness: 0.85, roughness: 0.35, clearcoat: 0.2, clearcoatRoughness: 0.5 }),
+            backGlass: new THREE.MeshPhysicalMaterial({ color: colors.matte, metalness: 0.15, roughness: 0.65, clearcoat: 0.1, clearcoatRoughness: 0.9 }),
+            innerBackPanel: new THREE.MeshPhysicalMaterial({ color: colors.matte, metalness: 0.12, roughness: 0.7, clearcoat: 0.05, clearcoatRoughness: 0.95 }),
+            screen: new THREE.MeshBasicMaterial({ map: screenTex, side: THREE.FrontSide, toneMapped: false }),
+            cameraBump: new THREE.MeshPhysicalMaterial({ color: colors.bump, metalness: 0.6, roughness: 0.4 }),
+            lensRingBase: new THREE.MeshPhysicalMaterial({ color: colors.base, metalness: 0.9, roughness: 0.2 }),
+            lensInnerBezel: new THREE.MeshPhysicalMaterial({ color: 0x050505, metalness: 0.8, roughness: 0.5 }),
+            lensGlass: new THREE.MeshPhysicalMaterial({ color: 0x020202, metalness: 0.3, roughness: 0.0, transparent: true, opacity: 0.6, clearcoat: 1.0 }),
+            pupilReflection: new THREE.MeshPhysicalMaterial({ color: 0x1a3d82, emissive: 0x020512, metalness: 0.8, roughness: 0.1, clearcoat: 1.0 }),
+            logo: new THREE.MeshPhysicalMaterial({ color: colors.logo, metalness: 0.7, roughness: 0.1, clearcoat: 1.0, side: THREE.DoubleSide }), // Fixed visibility
+            antenna: new THREE.MeshBasicMaterial({ color: 0x121620 }), // Adjusted to match the new base color
+            blackDetail: new THREE.MeshBasicMaterial({ color: 0x111111 }),
+            screenBorder: new THREE.MeshPhysicalMaterial({ color: 0x000000, metalness: 0.1, roughness: 0.1, clearcoat: 1.0 }),
+            buttonMat: new THREE.MeshPhysicalMaterial({ color: colors.base, metalness: 0.95, roughness: 0.2, clearcoat: 0.6 }),
+            captureBtnMat: new THREE.MeshPhysicalMaterial({ color: 0x0a0d14, metalness: 0.9, roughness: 0.1, clearcoat: 1.0 })
+        };
+
+        function createRoundedRectShape(width, height, radius) {
+            const shape = new THREE.Shape();
+            const x = -width / 2, y = -height / 2;
+            shape.moveTo(x, y + radius);
+            shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+            shape.lineTo(x + width - radius, y + height);
+            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+            shape.lineTo(x + width, y + radius);
+            shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+            shape.lineTo(x + radius, y);
+            shape.quadraticCurveTo(x, y, x, y + radius);
+            return shape;
+        }
+
+        function createRoundedPlane(width, height, radius) {
+            const shape = createRoundedRectShape(width, height, radius);
+            const geometry = new THREE.ShapeGeometry(shape, 48);
+            const pos = geometry.attributes.position;
+            const x = -width / 2, y = -height / 2;
+            const uv = new Float32Array(pos.count * 2);
+            for(let i = 0; i < pos.count; i++) {
+                uv[i * 2] = (pos.getX(i) - x) / width;
+                uv[i * 2 + 1] = (pos.getY(i) - y) / height;
+            }
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            return geometry;
+        }
+
+        const phoneGroup = new THREE.Group();
+        scene.add(phoneGroup);
+
+        // 1. Titanium Frame
+        const frameShape = createRoundedRectShape(phoneWidth, phoneHeight, cornerRadius);
+        const frameGeom = new THREE.ExtrudeGeometry(frameShape, { depth: phoneDepth, bevelEnabled: true, bevelSegments: 8, steps: 1, bevelSize: 0.05, bevelThickness: 0.05, curveSegments: 48 });
+        frameGeom.translate(0, 0, -phoneDepth / 2);
+        const frameMesh = new THREE.Mesh(frameGeom, materials.frame);
+        frameMesh.castShadow = true; frameMesh.receiveShadow = true;
+        phoneGroup.add(frameMesh);
+
+        // 2. Screen Glass & Border
+        const borderGeom = createRoundedPlane(phoneWidth - 0.06, phoneHeight - 0.06, cornerRadius - 0.02);
+        const borderMesh = new THREE.Mesh(borderGeom, materials.screenBorder);
+        borderMesh.position.z = phoneDepth / 2 + 0.051;
+        phoneGroup.add(borderMesh);
+
+        const screenGeom = createRoundedPlane(phoneWidth - 0.16, phoneHeight - 0.16, cornerRadius - 0.07);
+        const screenMesh = new THREE.Mesh(screenGeom, materials.screen);
+        screenMesh.name = "screenOnly";
+        screenMesh.position.z = phoneDepth / 2 + 0.055;
+        phoneGroup.add(screenMesh);
+
+        // Dynamic Island Cutout on Screen
+        const islandShape = createRoundedRectShape(0.84, 0.24, 0.12);
+        const islandGeom = new THREE.ExtrudeGeometry(islandShape, { depth: 0.01, bevelEnabled: false, curveSegments: 32 });
+        const islandMesh = new THREE.Mesh(islandGeom, new THREE.MeshBasicMaterial({color: 0x000000}));
+        islandMesh.position.set(0, phoneHeight / 2 - 0.25, phoneDepth / 2 + 0.058);
+        phoneGroup.add(islandMesh);
+
+        // 3. Matte Back Glass
+        const backShape = createRoundedRectShape(phoneWidth - 0.06, phoneHeight - 0.06, cornerRadius - 0.02);
+        const backGeom = new THREE.ExtrudeGeometry(backShape, { depth: 0.015, bevelEnabled: false, curveSegments: 48 });
+        const backMesh = new THREE.Mesh(backGeom, materials.backGlass);
+        backMesh.position.z = -phoneDepth / 2 - 0.055;
+        phoneGroup.add(backMesh);
+
+        // Distinct Lower Panel (The panel separation design from the image)
+        const panelWidth = phoneWidth - 0.18;
+        const panelHeight = 4.70;
+        const panelRadius = cornerRadius - 0.05;
+        const panelShape = createRoundedRectShape(panelWidth, panelHeight, panelRadius);
+        
+        // Extrude it thinly to sit on top of the back glass, creating a clear seam
+        const panelGeom = new THREE.ExtrudeGeometry(panelShape, { depth: 0.008, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.015, bevelThickness: 0.015, curveSegments: 48 });
+        const panelMesh = new THREE.Mesh(panelGeom, materials.innerBackPanel);
+        
+        // Rotate to face the back and position it strictly below the camera bump
+        panelMesh.rotation.y = Math.PI; 
+        const panelY = -0.86; // Centered vertically in the space below the bump
+        const panelZ = -phoneDepth / 2 - 0.054; // Sits perfectly flush with back glass
+        panelMesh.position.set(0, panelY, panelZ);
+        
+        // Add a subtle border line to emphasize the seam
+        const borderEdgeGeom = new THREE.EdgesGeometry(panelGeom);
+        const borderLineMaterial = new THREE.LineBasicMaterial({ color: colors.panelLine, linewidth: 1, transparent: true, opacity: 0.4 });
+        const borderLine = new THREE.LineSegments(borderEdgeGeom, borderLineMaterial);
+        panelMesh.add(borderLine);
+        
+        phoneGroup.add(panelMesh);
+
+        // OPTIMIZED HORIZONTAL CAMERA BUMP (Less height and less white space)
+        const camIslandWidth = 2.80;
+        const camIslandHeight = 1.55; // Reduced height for tight fit
+        const camIslandRadius = 0.40;
+        const camIslandDepth = 0.08; 
+        const camIslandBevel = 0.04;
+        
+        const camIslandShape = createRoundedRectShape(camIslandWidth, camIslandHeight, camIslandRadius);
+        const camIslandGeom = new THREE.ExtrudeGeometry(camIslandShape, { depth: camIslandDepth, bevelEnabled: true, bevelSegments: 20, steps: 1, bevelSize: camIslandBevel, bevelThickness: camIslandBevel, curveSegments: 64 });
+        camIslandGeom.translate(0, 0, -camIslandDepth / 2);
+        
+        const camIslandMesh = new THREE.Mesh(camIslandGeom, materials.cameraBump);
+        
+        const camX = 0; 
+        const camY = (phoneHeight / 2) - (camIslandHeight / 2) - 0.18; // Adjusted offset
+        const camBumpCenterZ = -0.25; 
+
+        camIslandMesh.position.set(camX, camY, camBumpCenterZ);
+        camIslandMesh.castShadow = true;
+        camIslandMesh.receiveShadow = true;
+        phoneGroup.add(camIslandMesh);
+
+        const islandSurfaceZ = camBumpCenterZ - (camIslandDepth / 2) - camIslandBevel;
+
+        function createProMaxLens(x, y, radius, surfaceZ) {
+            const group = new THREE.Group();
+            group.position.set(x, y, surfaceZ); 
+            
+            const ringThickness = 0.038; 
+            const collarDepth = 0.025;
+            const collarRadius = radius + ringThickness + 0.02;
+            const collarGeom = new THREE.CylinderGeometry(collarRadius, collarRadius + 0.01, collarDepth, 64);
+            collarGeom.rotateX(Math.PI / 2);
+            const collarMesh = new THREE.Mesh(collarGeom, materials.lensRingBase);
+            collarMesh.position.z = -collarDepth / 2;
+            group.add(collarMesh);
+
+            const barrelDepth = 0.09; 
+            const barrelGeom = new THREE.CylinderGeometry(radius + ringThickness, radius + ringThickness, barrelDepth, 64, 1, true); 
+            barrelGeom.rotateX(Math.PI / 2);
+            const barrelMesh = new THREE.Mesh(barrelGeom, materials.lensInnerBezel);
+            barrelMesh.position.z = -collarDepth - (barrelDepth / 2);
+            group.add(barrelMesh);
+
+            const bezelGeom = new THREE.RingGeometry(radius - 0.05, radius + 0.005, 64);
+            const bezelMesh = new THREE.Mesh(bezelGeom, materials.lensInnerBezel);
+            bezelMesh.rotation.y = Math.PI;
+            bezelMesh.position.z = -collarDepth - barrelDepth + 0.022;
+            group.add(bezelMesh);
+
+            const glassZ = -collarDepth - barrelDepth + 0.03; 
+            const glassGeom = new THREE.CircleGeometry(radius - 0.018, 64);
+            const glassMesh = new THREE.Mesh(glassGeom, materials.lensGlass);
+            glassMesh.rotation.y = Math.PI;
+            glassMesh.position.z = glassZ; 
+            group.add(glassMesh);
+
+            const sensorZ = glassZ + 0.035; 
+            const aperture = new THREE.Mesh(new THREE.RingGeometry(radius * 0.3, radius * 0.85, 48), new THREE.MeshBasicMaterial({ color: 0x030303 }));
+            aperture.rotation.y = Math.PI;
+            aperture.position.z = sensorZ;
+            group.add(aperture);
+
+            const sensorGeom = new THREE.CircleGeometry(radius * 0.3, 32);
+            const sensorMesh = new THREE.Mesh(sensorGeom, materials.pupilReflection);
+            sensorMesh.rotation.y = Math.PI;
+            sensorMesh.position.z = sensorZ - 0.001; 
+            group.add(sensorMesh);
+
+            return group;
+        }
+
+        const lensRadius = 0.26; // Tighter lens radius to fit smaller height
+        const rightColX = 0.82;   
+        const midInnerX = 0.14; 
+
+        const topLensY = camY + 0.35;
+        const bottomLensY = camY - 0.35;
+        const middleLensY = camY;
+
+        const lens1 = createProMaxLens(rightColX, topLensY, lensRadius, islandSurfaceZ);
+        const lens2 = createProMaxLens(rightColX, bottomLensY, lensRadius, islandSurfaceZ);
+        const lens3 = createProMaxLens(midInnerX, middleLensY, lensRadius, islandSurfaceZ);
+        phoneGroup.add(lens1, lens2, lens3);
+
+        const leftColX = -0.92;
+        const flashGroup = new THREE.Group();
+        flashGroup.position.set(leftColX, camY + 0.42, islandSurfaceZ);
+        const flashRing = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.012, 20, 36), materials.lensRingBase);
+        const flashGlass = new THREE.Mesh(new THREE.CircleGeometry(0.08, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.1, clearcoat: 1.0 }));
+        flashGlass.rotation.y = Math.PI; flashGlass.position.z = -0.004;
+        const flashCenter = new THREE.Mesh(new THREE.CircleGeometry(0.035, 20), new THREE.MeshBasicMaterial({ color: 0xffe6b0 }));
+        flashCenter.rotation.y = Math.PI; flashCenter.position.z = -0.008;
+        flashGroup.add(flashRing, flashGlass, flashCenter);
+        phoneGroup.add(flashGroup);
+
+        const lidarGroup = new THREE.Group();
+        lidarGroup.position.set(leftColX, camY - 0.42, islandSurfaceZ);
+        const lidarRing = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.012, 20, 36), new THREE.MeshPhysicalMaterial({color: 0x111111, metalness: 0.8, roughness: 0.3}));
+        const lidarGlass = new THREE.Mesh(new THREE.CircleGeometry(0.095, 32), materials.lensGlass);
+        lidarGlass.rotation.y = Math.PI; lidarGlass.position.z = -0.004; 
+        const lidarDot = new THREE.Mesh(new THREE.CircleGeometry(0.035, 20), materials.blackDetail);
+        lidarDot.rotation.y = Math.PI; lidarDot.position.z = -0.008;
+        lidarGroup.add(lidarRing, lidarGlass, lidarDot);
+        phoneGroup.add(lidarGroup);
+
+        const mic = new THREE.Mesh(new THREE.CircleGeometry(0.025, 20), materials.blackDetail);
+        mic.rotation.y = Math.PI;
+        mic.position.set(leftColX + 0.32, camY + 0.02, islandSurfaceZ - 0.001); 
+        phoneGroup.add(mic);
+
+        function createButton(w, h, d, x, y, z, mat = materials.buttonMat, isRecessed = false) {
+            const group = new THREE.Group();
+            
+            // The Button Mesh with highly smoothed bevels
+            const btnShape = createRoundedRectShape(w, h, w/2);
+            const btnGeom = new THREE.ExtrudeGeometry(btnShape, { 
+                depth: d, bevelEnabled: true, bevelSegments: 6, steps: 1, bevelSize: 0.008, bevelThickness: 0.008, curveSegments: 32 
+            });
+            btnGeom.translate(0, 0, -d/2);
+            const btnMesh = new THREE.Mesh(btnGeom, mat);
+            btnMesh.castShadow = true;
+            group.add(btnMesh);
+            
+            // Embedded gap/cutout trick (creates a visually dark hole for the button to sit in)
+            const gap = isRecessed ? 0.02 : 0.015;
+            const cutoutShape = createRoundedRectShape(w + gap, h + gap, (w + gap)/2);
+            const cutoutGeom = new THREE.ShapeGeometry(cutoutShape);
+            const cutoutMesh = new THREE.Mesh(cutoutGeom, new THREE.MeshBasicMaterial({ 
+                color: 0x030406, side: THREE.DoubleSide 
+            }));
+            cutoutMesh.position.z = -d/2 + 0.011; // Align precisely with the frame surface
+            group.add(cutoutMesh);
+
+            if(x > 0) { 
+                group.rotation.y = Math.PI / 2;
+                group.position.set(x + (isRecessed ? -0.01 : d/2 - 0.01), y, z);
+            } else { 
+                group.rotation.y = -Math.PI / 2;
+                group.position.set(x - (isRecessed ? -0.01 : d/2 - 0.01), y, z);
+            }
+            return group;
+        }
+
+        const halfW = phoneWidth / 2;
+        const actionBtn = createButton(0.12, 0.4, 0.04, -halfW, phoneHeight / 2 - 1.2, 0, materials.buttonMat);
+        const volUp = createButton(0.12, 0.65, 0.04, -halfW, phoneHeight / 2 - 2.0, 0, materials.buttonMat);
+        const volDown = createButton(0.12, 0.65, 0.04, -halfW, phoneHeight / 2 - 2.8, 0, materials.buttonMat);
+        const powerBtn = createButton(0.12, 0.85, 0.04, halfW, phoneHeight / 2 - 1.9, 0, materials.buttonMat);
+        
+        // Distinct capture button (flush and glossy like sapphire crystal)
+        const captureBtn = createButton(0.16, 0.75, 0.03, halfW, -phoneHeight / 2 + 1.6, 0, materials.captureBtnMat, true); 
+        
+        phoneGroup.add(actionBtn, volUp, volDown, powerBtn, captureBtn);
+
+        function createAntenna(x, y) {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, phoneDepth + 0.02), materials.antenna);
+            mesh.position.set(x, y, 0);
+            return mesh;
+        }
+        const ants = [
+            createAntenna(-halfW, phoneHeight/2 - 0.6), createAntenna(halfW, phoneHeight/2 - 0.6),
+            createAntenna(-halfW, -phoneHeight/2 + 0.6), createAntenna(halfW, -phoneHeight/2 + 0.6),
+            createAntenna(0, phoneHeight/2, 0)
+        ];
+        ants[4].rotation.z = Math.PI / 2;
+        ants.forEach(a => phoneGroup.add(a));
+
+        const logoGroup = new THREE.Group();
+        // Fixed logo position - moved further out so it doesn't get hidden inside the panel
+        logoGroup.position.set(0, -0.86, -phoneDepth / 2 - 0.085);
+        logoGroup.rotation.y = Math.PI;
+
+        const s = 0.052; // Slightly larger logo for better presence
+        const cx = 12;
+        const cy = 12;
+        const tx = (x) => (x - cx) * s;
+        const ty = (y) => -(y - cy) * s;
+
+        const logoShape = new THREE.Shape();
+        logoShape.moveTo(tx(18.71), ty(19.5));
+        logoShape.bezierCurveTo(tx(17.88), ty(20.74), tx(17), ty(21.95), tx(15.66), ty(21.97));
+        logoShape.bezierCurveTo(tx(14.32), ty(22), tx(13.89), ty(21.18), tx(12.37), ty(21.18));
+        logoShape.bezierCurveTo(tx(10.84), ty(21.18), tx(10.37), ty(21.95), tx(9.09997), ty(22));
+        logoShape.bezierCurveTo(tx(7.78997), ty(22.05), tx(6.79997), ty(20.68), tx(5.95997), ty(19.47));
+        logoShape.bezierCurveTo(tx(4.24997), ty(17), tx(2.93997), ty(12.45), tx(4.69997), ty(9.39));
+        logoShape.bezierCurveTo(tx(5.56997), ty(7.87), tx(7.12997), ty(6.91), tx(8.81997), ty(6.88));
+        logoShape.bezierCurveTo(tx(10.1), ty(6.86), tx(11.32), ty(7.75), tx(12.11), ty(7.75));
+        logoShape.bezierCurveTo(tx(12.89), ty(7.75), tx(14.37), ty(6.68), tx(15.92), ty(6.84));
+        logoShape.bezierCurveTo(tx(16.57), ty(6.87), tx(18.39), ty(7.1), tx(19.56), ty(8.82));
+        logoShape.bezierCurveTo(tx(19.47), ty(8.88), tx(17.39), ty(10.1), tx(17.41), ty(12.63));
+        logoShape.bezierCurveTo(tx(17.44), ty(15.65), tx(20.06), ty(16.66), tx(20.09), ty(16.67));
+        logoShape.bezierCurveTo(tx(20.06), ty(16.74), tx(19.67), ty(18.11), tx(18.71), ty(19.5));
+
+        const leafShape = new THREE.Shape();
+        leafShape.moveTo(tx(13), ty(3.5));
+        leafShape.bezierCurveTo(tx(13.73), ty(2.67), tx(14.94), ty(2.04), tx(15.94), ty(2));
+        leafShape.bezierCurveTo(tx(16.07), ty(3.17), tx(15.6), ty(4.35), tx(14.9), ty(5.19));
+        leafShape.bezierCurveTo(tx(14.21), ty(6.04), tx(13.07), ty(6.7), tx(11.95), ty(6.61));
+        leafShape.bezierCurveTo(tx(11.8), ty(5.46), tx(12.36), ty(4.26), tx(13), ty(3.5));
+        
+        const mainLogoMesh = new THREE.Mesh(new THREE.ShapeGeometry(logoShape), materials.logo);
+        const leafMesh = new THREE.Mesh(new THREE.ShapeGeometry(leafShape), materials.logo);
+        logoGroup.add(mainLogoMesh, leafMesh);
+        phoneGroup.add(logoGroup);
+
+        let targetPhoneY = -4.5, targetPhoneRotY = 0, targetPhoneRotX = 0, targetPhoneRotZ = 0;
+        let targetScreenScaleX = 1.0, targetScreenScaleY = 1.0;
+        let currentScrollP = 0, finalZoomDistanceZ = 10.0, fillDistance = 14.0, targetScreenGlow = 0.95;
+        // Camera looks straight on at the center
+        let targetCamPos = new THREE.Vector3(0, 0, 18);
+        let currentCamLookAt = new THREE.Vector3(0, 0, 0), targetCamLookAt = new THREE.Vector3(0, 0, 0);
+        // Set initial camera immediately
+        camera.position.set(0, 0, 18);
+        camera.lookAt(0, 0, 0);
+
+        function calculateResponsiveZoom() {
+            const vFov = 38 * Math.PI / 180;
+            const halfFov = vFov / 2;
+            const aspect = window.innerWidth / window.innerHeight;
+
+            // Phone screen face is at approximately Z = phoneDepth/2 + 0.04 ≈ 0.2
+            const screenFaceZ = 0.2;
+            const screenH = 6.64; // phoneHeight - bezel
+            const screenW = 2.94; // phoneWidth - bezel
+
+            // Distance FROM the screen face needed to fill the frustum
+            const distV = (screenH / 2) / Math.tan(halfFov);
+            const distH_fill = (screenW / 2) / (Math.tan(halfFov) * aspect);
+            const distToFill = Math.max(distV, distH_fill);
+
+            // Camera Z = screen face Z + distance from screen = camera is in FRONT of screen
+            fillDistance = screenFaceZ + distToFill;
+
+            // Mid-zoom: frame the whole phone with some padding
+            const frameV = (7.8 / 2) / Math.tan(halfFov); // slightly taller than phone
+            const frameH = (3.8 / 2) / (Math.tan(halfFov) * aspect);
+            finalZoomDistanceZ = Math.max(frameV, frameH);
+        }
+
+        function updateScrollTargets() {
+            let p;
+            if (window.externalScrollP !== undefined) {
+                p = window.externalScrollP;
+            } else {
+                const maxScroll = Math.max(1, document.body.scrollHeight - window.innerHeight);
+                p = window.scrollY / maxScroll;
+            }
+            currentScrollP = p;
+
+            // Phase 1 (0→0.25): Phone rises from below center to center, spins 360° (Image 1)
+            if (p <= 0.25) {
+                const t = p / 0.25; const ease = 1 - Math.pow(1-t, 3);
+                // Rises from Y=-4.5 to Y=0
+                targetPhoneY = -4.5 + (4.5 * ease);
+                // Full 360° spin (starts at 0, ends at 2π = same as 0 = front face)
+                targetPhoneRotY = ease * Math.PI * 2;
+                targetPhoneRotX = 0;
+                targetPhoneRotZ = 0;
+            } else {
+                targetPhoneY = 0;
+                targetPhoneRotY = Math.PI * 2;
+                targetPhoneRotX = 0;
+                targetPhoneRotZ = 0;
+            }
+
+            // Screen is always on and visible from the very beginning
+            targetScreenGlow = 0.95;
+
+            // Phase 2: Camera zooms in quickly from Image 1 to Image 2 (no dead waiting zone!)
+            const CS = new THREE.Vector3(0, 0, 18), LS = new THREE.Vector3(0, 0, 0);
+            const CM = new THREE.Vector3(0, 0, finalZoomDistanceZ), LM = new THREE.Vector3(0, 0, 0);
+            const CE = new THREE.Vector3(0, 0, fillDistance), LE = new THREE.Vector3(0, 0, 0);
+
+            if (p < 0.28) {
+                targetCamPos.copy(CS);
+                targetCamLookAt.copy(LS);
+            } else if (p <= 0.42) {
+                const t = (p - 0.28) / 0.14;
+                const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                targetCamPos.lerpVectors(CS, CM, e);
+                targetCamLookAt.lerpVectors(LS, LM, e);
+            } else if (p <= 0.58) {
+                const t = (p - 0.42) / 0.16;
+                const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                targetCamPos.lerpVectors(CM, CE, e);
+                targetCamLookAt.lerpVectors(LM, LE, e);
+            } else {
+                targetCamPos.copy(CE);
+                targetCamLookAt.copy(LE);
+            }
+
+            // Phase 3 (0.58→0.75): Scale screen slightly to perfectly clip bezels (Image 2)
+            if (p > 0.58) {
+                let t = Math.min(1, (p - 0.58) / 0.17);
+                let ease = -(Math.cos(Math.PI * t) - 1) / 2;
+                
+                const vFov = 38 * Math.PI / 180;
+                const frustumHeight = 2 * fillDistance * Math.tan(vFov / 2);
+                const aspect = window.innerWidth / window.innerHeight;
+                const frustumWidth = frustumHeight * aspect;
+                
+                // Original screen dimensions
+                const screenW = 2.94;
+                const screenH = 6.64;
+                
+                const requiredScaleX = frustumWidth / screenW;
+                const requiredScaleY = frustumHeight / screenH;
+                const maxScale = Math.max(requiredScaleX, requiredScaleY);
+                
+                targetScreenScaleX = 1.0 + ease * (maxScale - 1.0);
+                targetScreenScaleY = 1.0 + ease * (maxScale - 1.0);
+            } else {
+                targetScreenScaleX = 1.0;
+                targetScreenScaleY = 1.0;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            // Lower LERP_SPEED for a more buttery smooth feel on mobile touch scrolling
+            const LERP_SPEED = 0.4;
+            
+            phoneGroup.position.y += (targetPhoneY - phoneGroup.position.y) * LERP_SPEED;
+            phoneGroup.rotation.y += (targetPhoneRotY - phoneGroup.rotation.y) * LERP_SPEED;
+            phoneGroup.rotation.x += (targetPhoneRotX - phoneGroup.rotation.x) * LERP_SPEED;
+            phoneGroup.rotation.z += (targetPhoneRotZ - phoneGroup.rotation.z) * LERP_SPEED;
+            if (materials.screen && materials.screen.emissiveIntensity !== undefined) {
+                materials.screen.emissiveIntensity += (targetScreenGlow - materials.screen.emissiveIntensity) * LERP_SPEED;
+            }
+            
+            const isFullScreenPhase = currentScrollP > 0.58;
+            
+            phoneGroup.children.forEach(child => {
+                if (child.name === "screenOnly") {
+                    child.scale.x += (targetScreenScaleX - child.scale.x) * LERP_SPEED;
+                    child.scale.y += (targetScreenScaleY - child.scale.y) * LERP_SPEED;
+                    const targetZ = isFullScreenPhase ? 0.3 : (phoneDepth/2 + 0.055);
+                    child.position.z += (targetZ - child.position.z) * LERP_SPEED;
+                } else {
+                    child.visible = !isFullScreenPhase;
+                }
+            });
+
+            camera.position.lerp(targetCamPos, LERP_SPEED);
+            currentCamLookAt.lerp(targetCamLookAt, LERP_SPEED);
+            camera.lookAt(currentCamLookAt);
+            renderer.render(scene, camera);
+
+            if (!window.hasNotifiedParent) {
+                window.parent.postMessage('iframe-loaded', '*');
+                window.hasNotifiedParent = true;
+            }
+        }
+
+        window.addEventListener('scroll', updateScrollTargets, { passive: true });
+        window.addEventListener('resize', () => { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); calculateResponsiveZoom(); updateScrollTargets(); });
+
+        function playSignatureAnimation() {
+            const paths = document.querySelectorAll('#signature-svg path');
+            let cumulativeDelay = 0;
+            paths.forEach((path) => {
+                path.style.animation = 'none';
+                const length = path.getTotalLength();
+                path.style.strokeDasharray = length; path.style.strokeDashoffset = length;
+                const duration = length / 1.2;
+                void path.offsetWidth;
+                path.style.animation = `drawInk ${duration}ms linear forwards ${cumulativeDelay}ms`;
+                cumulativeDelay += duration + 100;
+            });
+        }
+
+        window.addEventListener('wheel', (e) => {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.scrollBy({ top: e.deltaY, behavior: 'auto' });
+                }
+            } catch(err) {}
+        }, { passive: true });
+
+        let touchStartY = 0;
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches.length > 0) {
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches && e.touches.length > 0) {
+                const touchY = e.touches[0].clientY;
+                const deltaY = (touchStartY - touchY) * 1.6;
+                touchStartY = touchY;
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.scrollBy({ top: deltaY, behavior: 'auto' });
+                    }
+                } catch(err) {}
+            }
+        }, { passive: true });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function handleScreenClick(clientX, clientY) {
+            if (!camera || !scene || !phoneGroup) return;
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(phoneGroup.children, true);
+            if (intersects.length > 0) {
+                const hit = intersects.find(i => i.object.name === "screenOnly");
+                if (hit && currentScrollP > 0.2) {
+                    try {
+                        if (window.top && window.top !== window) {
+                            window.top.location.href = '/hire';
+                        } else {
+                            window.location.href = '/hire';
+                        }
+                    } catch(err) {
+                        window.location.href = '/hire';
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('click', (e) => {
+            handleScreenClick(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('touchend', (e) => {
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                handleScreenClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!camera || !scene || !phoneGroup) return;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(phoneGroup.children, true);
+            const hit = intersects.find(i => i.object.name === "screenOnly");
+            document.body.style.cursor = (hit && currentScrollP > 0.2) ? 'pointer' : 'default';
+        });
+
+        window.onload = () => { calculateResponsiveZoom(); updateScrollTargets(); animate(); };
+        window.addEventListener('message', (e) => {
+            if (e.data === 'app-loaded') {
+                playSignatureAnimation();
+            } else if (e.data && e.data.type === 'SYNC_SCROLL') {
+                window.externalScrollP = e.data.payload;
+                updateScrollTargets();
+            }
+        });
+    </script>
+</body>
+</html>
